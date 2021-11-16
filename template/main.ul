@@ -1,0 +1,3 @@
+function main do
+    println("Hello World! {}", 5);
+end

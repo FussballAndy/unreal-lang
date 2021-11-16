@@ -1,0 +1,15 @@
+[package]
+name = "ulc_builder"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.44"
+log = "0.4.14"
+serde = { version = "1.0.130", features = ["derive"] }
+
+ulc_checker = { path = "../ulc_checker" }
+ulc_parser = { path = "../ulc_parser" }
+ulc_types = { path = "../ulc_types" }

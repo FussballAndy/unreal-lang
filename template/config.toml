@@ -1,0 +1,6 @@
+[project]
+name = "%NAME%"
+version = "1.0"
+description = "A new project!"
+authors = ["You!"]
+entry_file = "main.ul"
