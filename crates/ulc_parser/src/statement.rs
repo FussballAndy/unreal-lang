@@ -41,12 +41,12 @@ impl Parser<'_, '_> {
                 match self.peek() {
                     TokenKind::Assign => {
                         self.consume(TokenKind::Assign)?;
-                        let expr = self.boxed_expression()?;
+                        let expr = crate::validate_used_if_expression(self.expression()?)?;
                         Ok(Spanned {
                             span: (ident_token.span.start..expr.span.end).into(),
                             node: Statement::Assignment {
                                 name: ident_text.to_owned(),
-                                expr,
+                                expr: Box::new(expr),
                             },
                         })
                     }
@@ -101,14 +101,14 @@ impl Parser<'_, '_> {
         let const_type = self.consume_type()?;
 
         self.consume(TokenKind::Assign)?;
-        let expr = self.boxed_expression()?;
+        let expr = crate::validate_used_if_expression(self.expression()?)?;
 
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
             node: Statement::Const {
                 name: ident_text.to_owned(),
                 const_type,
-                expr,
+                expr: Box::new(expr),
             },
         })
     }
@@ -129,14 +129,14 @@ impl Parser<'_, '_> {
         self.consume(TokenKind::Colon)?;
         let let_type = self.consume_type()?;
         self.consume(TokenKind::Assign)?;
-        let expr = self.boxed_expression()?;
+        let expr = crate::validate_used_if_expression(self.expression()?)?;
 
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
             node: Statement::Let {
                 name: ident_text.to_owned(),
                 let_type,
-                expr,
+                expr: Box::new(expr),
             },
         })
     }

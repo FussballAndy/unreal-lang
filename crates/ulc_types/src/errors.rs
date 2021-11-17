@@ -1,3 +1,5 @@
+use crate::token::TokenSpan;
+
 use super::token::Token;
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
@@ -27,12 +29,19 @@ impl<'input> FiledError<'input> {
 }
 
 pub enum SyntaxError {
-    UnexpectedToken { expected: String, token: Token },
+    UnexpectedToken {
+        expected: String,
+        token: Token,
+    },
     InvalidLiteral(Token),
     UnexpectedEndOfInput(Token),
     InvalidToken(Token),
     InvalidIdent(Spanned<String>),
     InvalidType(Spanned<String>),
+    InvalidIfExpression {
+        span: TokenSpan,
+        sp_msg: Spanned<String>,
+    },
 
     End,
 }
@@ -73,6 +82,12 @@ impl SyntaxError {
                 .with_labels(vec![
                     Label::primary(file_id, token.span).with_message("Unknown type")
                 ]),
+            Self::InvalidIfExpression { span, sp_msg } => {
+                Diagnostic::error().with_message("").with_labels(vec![
+                    Label::primary(file_id, *span),
+                    Label::secondary(file_id, sp_msg.span).with_message(sp_msg.node.clone()),
+                ])
+            }
             Self::End => unreachable!(),
         };
 

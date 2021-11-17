@@ -4,7 +4,7 @@ members = [
     "crates/ulc_ast",
     "crates/ulc_builder",
     "crates/ulc_checker",
-    "crates/ulc_codegen_llvm",
+    "crates/ulc_codegen_cranelift",
     "crates/ulc_lexer",
     "crates/ulc_parser",
     "crates/ulc_types",

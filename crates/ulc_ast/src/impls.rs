@@ -16,7 +16,10 @@ impl fmt::Display for Expression {
                 "(if :cond {} :then ({}) :else ({}))",
                 condition,
                 join(true_case),
-                join(false_case)
+                match false_case {
+                    Some(fa_c) => join(fa_c),
+                    None => "".to_owned(),
+                }
             ),
             Self::FunctionCall { function, args } => write!(f, "({} {})", function, join(args)),
             Self::BinaryOperation { op, lhs, rhs } => write!(f, "({} {} {})", op, lhs, rhs),

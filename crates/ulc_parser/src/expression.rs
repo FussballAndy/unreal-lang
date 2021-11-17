@@ -140,7 +140,9 @@ impl Parser<'_, '_> {
 
                 self.consume(op)?;
 
-                let right_hand_side = self.parse_expression(right_binding_power)?;
+                let right_hand_side = crate::validate_used_if_expression(
+                    self.parse_expression(right_binding_power)?,
+                )?;
                 left_hand_side = Spanned {
                     span: (left_hand_side.span.start..right_hand_side.span.end).into(),
                     node: Expression::BinaryOperation {
@@ -193,7 +195,7 @@ impl Parser<'_, '_> {
             },
         });
 
-        if self.peek() == TokenKind::LeftParen {
+        if self.at(TokenKind::LeftParen) {
             self.parse_function_call(text.to_owned(), token.span.start)
         } else {
             Ok(Spanned {
@@ -225,47 +227,46 @@ impl Parser<'_, '_> {
             }
             self.consume(TokenKind::Semicolon)?;
         }
-        let mut false_case = Vec::new();
-        let final_token = match self.peek() {
-            TokenKind::Else => {
-                self.consume(TokenKind::Else)?;
-                while !self.at(TokenKind::End) {
-                    let stmt = self.parse_statement()?;
-                    if !self.at(TokenKind::Semicolon) {
-                        if let Statement::UnusedExpression(e) = stmt.node {
-                            false_case.push(Spanned {
-                                node: Statement::ReturnStatement { expression: e },
-                                span: stmt.span,
-                            });
-                        } else {
-                            false_case.push(stmt);
-                        }
-                        break;
+        if self.at(TokenKind::End) {
+            let end = self.consume_next(TokenKind::End)?;
+            Ok(Spanned {
+                span: (token.span.start..end.span.end).into(),
+                node: Expression::IfExpr {
+                    condition,
+                    true_case,
+                    false_case: None,
+                },
+            })
+        } else {
+            self.consume(TokenKind::Else)?;
+            let mut false_case = Vec::new();
+            while !self.at(TokenKind::End) {
+                let stmt = self.parse_statement()?;
+                if !self.at(TokenKind::Semicolon) {
+                    if let Statement::UnusedExpression(e) = stmt.node {
+                        false_case.push(Spanned {
+                            node: Statement::ReturnStatement { expression: e },
+                            span: stmt.span,
+                        });
                     } else {
                         false_case.push(stmt);
                     }
-                    self.consume(TokenKind::Semicolon)?;
+                    break;
+                } else {
+                    false_case.push(stmt);
                 }
-                self.consume_next(TokenKind::End)?
+                self.consume(TokenKind::Semicolon)?;
             }
-            TokenKind::End => self.consume_next(TokenKind::End)?,
-            _ => {
-                let token = self.next_token()?;
-                return Err(SyntaxError::UnexpectedToken {
-                    expected: "let".to_owned(),
-                    token,
-                });
-            }
-        };
-
-        Ok(Spanned {
-            span: (token.span.start..final_token.span.end).into(),
-            node: Expression::IfExpr {
-                condition,
-                true_case,
-                false_case,
-            },
-        })
+            let end = self.consume_next(TokenKind::End)?;
+            Ok(Spanned {
+                span: (token.span.start..end.span.end).into(),
+                node: Expression::IfExpr {
+                    condition,
+                    true_case,
+                    false_case: Some(false_case),
+                },
+            })
+        }
     }
 
     pub fn parse_function_call(
@@ -279,7 +280,8 @@ impl Parser<'_, '_> {
             if !args.is_empty() && self.at(TokenKind::Comma) {
                 self.consume(TokenKind::Comma)?;
             }
-            args.push(self.expression()?)
+            let expr = crate::validate_used_if_expression(self.expression()?)?;
+            args.push(expr);
         }
         let end = self.consume_next(TokenKind::RightParen)?;
         Ok(Spanned {

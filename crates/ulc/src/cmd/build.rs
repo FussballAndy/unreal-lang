@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::ArgMatches;
 use std::env::current_dir;
 use std::fs::File;
@@ -16,7 +17,8 @@ pub fn execute(args: &ArgMatches) -> anyhow::Result<()> {
         abort: args.value_of("abort").is_some(),
         emit_llvm: args.value_of("llvm").is_some(),
     };
-    let mut config_file = File::open(path.join("config.toml"))?;
+    let mut config_file =
+        File::open(path.join("config.toml")).context("File 'config.toml' not found!")?;
     let mut contents = String::new();
     config_file.read_to_string(&mut contents)?;
     let config: Config = toml::from_str(&contents)?;

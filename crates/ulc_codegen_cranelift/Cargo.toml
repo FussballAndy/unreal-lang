@@ -1,9 +1,13 @@
 [package]
-name = "ulc_codegen_llvm"
+name = "ulc_codegen_cranelift"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ulc_ast = { path = "../ulc_ast" }
+anyhow = "1.0.45"
+cranelift = "0.78.0"
+cranelift-module = "0.78.0"
+cranelift-object = "0.78.0"
+target-lexicon = "0.12.2"

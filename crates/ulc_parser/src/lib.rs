@@ -1,10 +1,10 @@
 use std::iter::Peekable;
 
-use ulc_ast::types::Type;
+use ulc_ast::{types::Type, Expression, Statement};
 use ulc_checker::CheckerContext;
 use ulc_lexer::Lexer;
 use ulc_types::{
-    errors::{SyntaxError, SyntaxResult},
+    errors::{ParseResult, SyntaxError, SyntaxResult},
     token::Token,
     token_kind::TokenKind,
     Spanned,
@@ -97,5 +97,70 @@ impl<'input, 'b> Parser<'input, 'b> {
             node: type_text.to_owned(),
             span: type_token.span,
         })
+    }
+}
+
+pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseResult<Expression> {
+    if let Expression::IfExpr {
+        true_case,
+        false_case,
+        ..
+    } = &expr.node
+    {
+        if let Some(a) = true_case.last() {
+            if let Statement::ReturnStatement { .. } = a.node {
+                if let Some(fl_c) = false_case {
+                    if let Some(d) = fl_c.last() {
+                        if let Statement::ReturnStatement { .. } = d.node {
+                            Ok(expr)
+                        } else {
+                            Err(SyntaxError::InvalidIfExpression {
+                                span: expr.span,
+                                sp_msg: Spanned {
+                                    span: d.span,
+                                    node:
+                                        "Expected return statement! Perhaps remove the semicolon."
+                                            .to_owned(),
+                                },
+                            })
+                        }
+                    } else {
+                        Err(SyntaxError::InvalidIfExpression {
+                            span: expr.span,
+                            sp_msg: Spanned {
+                                span: expr.span,
+                                node: "False case is missing return statement!".to_owned(),
+                            },
+                        })
+                    }
+                } else {
+                    Err(SyntaxError::InvalidIfExpression {
+                        span: expr.span,
+                        sp_msg: Spanned {
+                            span: expr.span,
+                            node: "Missing false case!".to_owned(),
+                        },
+                    })
+                }
+            } else {
+                Err(SyntaxError::InvalidIfExpression {
+                    span: expr.span,
+                    sp_msg: Spanned {
+                        span: a.span,
+                        node: "Expected return statement! Perhaps remove the semicolon.".to_owned(),
+                    },
+                })
+            }
+        } else {
+            Err(SyntaxError::InvalidIfExpression {
+                span: expr.span,
+                sp_msg: Spanned {
+                    span: expr.span,
+                    node: "True case is missing return statement!".to_owned(),
+                },
+            })
+        }
+    } else {
+        Ok(expr)
     }
 }

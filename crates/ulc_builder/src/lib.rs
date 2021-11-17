@@ -2,6 +2,7 @@ mod types;
 
 use std::{io::Read, path::PathBuf};
 
+use anyhow::Context;
 pub use types::*;
 
 use ulc_checker::CheckerContext;
@@ -26,7 +27,10 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
             .unwrap_or_else(|| "main.ul".to_owned()),
     );
     let mut contents = String::new();
-    let mut file = std::fs::File::open(&path)?;
+    let mut file = std::fs::File::open(&path).context(format!(
+        "The entry file '{}' was not found!",
+        std::fs::canonicalize(&path)?.to_str().unwrap()
+    ))?;
     file.read_to_string(&mut contents)?;
 
     build_input(

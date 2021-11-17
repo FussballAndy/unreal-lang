@@ -28,7 +28,7 @@ pub enum Expression {
     IfExpr {
         condition: BoxedExpression,
         true_case: Vec<Spanned<Statement>>,
-        false_case: Vec<Spanned<Statement>>,
+        false_case: Option<Vec<Spanned<Statement>>>,
     },
     Block {
         statements: Vec<Spanned<Statement>>,
