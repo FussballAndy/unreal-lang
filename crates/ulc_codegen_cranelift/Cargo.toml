@@ -11,3 +11,6 @@ cranelift = "0.78.0"
 cranelift-module = "0.78.0"
 cranelift-object = "0.78.0"
 target-lexicon = "0.12.2"
+
+ulc_ast = { path = "../ulc_ast" }
+ulc_types = { path = "../ulc_types" }

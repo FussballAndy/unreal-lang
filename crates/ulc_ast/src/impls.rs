@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::BlockStatements;
+
 use super::{Expression, Function, Lit, Statement};
 
 impl fmt::Display for Expression {
@@ -24,8 +26,13 @@ impl fmt::Display for Expression {
             Self::FunctionCall { function, args } => write!(f, "({} {})", function, join(args)),
             Self::BinaryOperation { op, lhs, rhs } => write!(f, "({} {} {})", op, lhs, rhs),
             Self::UnaryOperation { op, expr } => write!(f, "({} {})", op, expr),
-            Self::Block { statements } => write!(f, "(block ({}))", join(statements)),
         }
+    }
+}
+
+impl fmt::Display for BlockStatements {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(block ({}))", join(&self.0))
     }
 }
 

@@ -1,12 +1,14 @@
 use ulc_types::{token_kind::TokenKind, Spanned};
 
-use self::types::Type;
+use self::types::ULCType;
 
 mod impls;
 pub mod types;
 
 pub type BoxedExpression = Box<Spanned<Expression>>;
 pub type Expressions = Vec<Spanned<Expression>>;
+
+pub struct BlockStatements(pub Vec<Spanned<Statement>>);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expression {
@@ -30,9 +32,6 @@ pub enum Expression {
         true_case: Vec<Spanned<Statement>>,
         false_case: Option<Vec<Spanned<Statement>>>,
     },
-    Block {
-        statements: Vec<Spanned<Statement>>,
-    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -46,8 +45,8 @@ pub enum Lit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     pub ident: String,
-    pub return_type: Type,
-    pub params: Vec<(String, Type)>,
+    pub return_type: ULCType,
+    pub params: Vec<(String, ULCType)>,
     pub body: Vec<Spanned<Statement>>,
 }
 
@@ -56,12 +55,12 @@ pub enum Statement {
     FunctionDefinition(Function),
     Const {
         name: String,
-        const_type: Type,
+        const_type: ULCType,
         expr: BoxedExpression,
     },
     Let {
         name: String,
-        let_type: Type,
+        let_type: ULCType,
         expr: BoxedExpression,
     },
     Assignment {

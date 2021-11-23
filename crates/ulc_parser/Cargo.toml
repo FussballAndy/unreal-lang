@@ -9,6 +9,5 @@ edition = "2021"
 anyhow = "1.0.44"
 
 ulc_ast = { path = "../ulc_ast" }
-ulc_checker = { path = "../ulc_checker" }
 ulc_lexer = { path = "../ulc_lexer" }
 ulc_types = { path = "../ulc_types" }

@@ -496,16 +496,7 @@ dependencies = [
  "anyhow",
  "log",
  "serde",
- "ulc_checker",
  "ulc_parser",
- "ulc_types",
-]
-
-[[package]]
-name = "ulc_checker"
-version = "0.1.0"
-dependencies = [
- "anyhow",
  "ulc_types",
 ]
 
@@ -518,6 +509,8 @@ dependencies = [
  "cranelift-module",
  "cranelift-object",
  "target-lexicon",
+ "ulc_ast",
+ "ulc_types",
 ]
 
 [[package]]
@@ -529,12 +522,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ulc_middle_ast"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ulc_ast",
+ "ulc_types",
+]
+
+[[package]]
 name = "ulc_parser"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "ulc_ast",
- "ulc_checker",
  "ulc_lexer",
  "ulc_types",
 ]

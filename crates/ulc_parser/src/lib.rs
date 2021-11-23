@@ -1,7 +1,6 @@
 use std::iter::Peekable;
 
-use ulc_ast::{types::Type, Expression, Statement};
-use ulc_checker::CheckerContext;
+use ulc_ast::{types::ULCType, Expression, Statement};
 use ulc_lexer::Lexer;
 use ulc_types::{
     errors::{ParseResult, SyntaxError, SyntaxResult},
@@ -13,23 +12,17 @@ use ulc_types::{
 mod expression;
 mod statement;
 
-pub struct Parser<'input, 'b> {
-    filename: &'input str,
+pub struct Parser<'input> {
     input: &'input str,
-    checker: &'b mut CheckerContext<'input>,
     lexer: Peekable<Lexer<'input>>,
 }
 
-impl<'input, 'b> Parser<'input, 'b> {
+impl<'input> Parser<'input> {
     pub fn new(
-        filename: &'input str,
         input: &'input str,
-        checker: &'b mut CheckerContext<'input>,
     ) -> Self {
         Self {
-            filename,
             input,
-            checker,
             lexer: Lexer::new(input).peekable(),
         }
     }
@@ -90,10 +83,10 @@ impl<'input, 'b> Parser<'input, 'b> {
         }
     }
 
-    pub fn consume_type(&mut self) -> SyntaxResult<Type> {
+    pub fn consume_type(&mut self) -> SyntaxResult<ULCType> {
         let type_token = self.consume_next(TokenKind::Type)?;
         let type_text = self.text(type_token);
-        Type::try_from(Spanned {
+        ULCType::try_from(Spanned {
             node: type_text.to_owned(),
             span: type_token.span,
         })

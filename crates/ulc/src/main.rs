@@ -57,8 +57,8 @@ fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
                         .help("Aborts on warnings!"),
                 )
                 .arg(
-                    Arg::with_name("llvm")
-                        .long("emit-llvm")
+                    Arg::with_name("clir")
+                        .long("emit-clir")
                         .short("E")
                         .help("Emit LLVM source."),
                 ),

@@ -46,7 +46,7 @@ impl Operator for TokenKind {
     }
 }
 
-impl Parser<'_, '_> {
+impl Parser<'_> {
     fn parse_expression(&mut self, binding_power: u8) -> ParseResult<Expression> {
         let lhs = match self.peek() {
             lit @ TokenKind::Unit
@@ -186,14 +186,6 @@ impl Parser<'_, '_> {
     fn parse_ident(&mut self) -> ParseResult<Expression> {
         let token = self.next_token()?;
         let text = self.text(token);
-        self.checker.add_used(Filed {
-            filename: self.filename,
-            contents: self.input,
-            node: Spanned {
-                node: text,
-                span: token.span,
-            },
-        });
 
         if self.at(TokenKind::LeftParen) {
             self.parse_function_call(text.to_owned(), token.span.start)

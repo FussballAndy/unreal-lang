@@ -16,18 +16,6 @@ use super::Spanned;
 pub type ParseResult<T> = anyhow::Result<super::Spanned<T>, SyntaxError>;
 pub type SyntaxResult<T> = anyhow::Result<T, SyntaxError>;
 
-pub struct FiledError<'input> {
-    pub filename: &'input str,
-    pub contents: &'input str,
-    pub error: SyntaxError,
-}
-
-impl<'input> FiledError<'input> {
-    pub fn display(&self) {
-        self.error.display(self.contents, self.filename);
-    }
-}
-
 pub enum SyntaxError {
     UnexpectedToken {
         expected: String,

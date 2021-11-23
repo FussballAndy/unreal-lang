@@ -3,14 +3,14 @@ use std::fmt::Display;
 use ulc_types::{errors::SyntaxError, Spanned};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {
+pub enum ULCType {
     Int,
     String,
     Unit,
     Bool,
 }
 
-impl TryFrom<Spanned<String>> for Type {
+impl TryFrom<Spanned<String>> for ULCType {
     type Error = SyntaxError;
 
     fn try_from(value: Spanned<String>) -> Result<Self, Self::Error> {
@@ -24,7 +24,7 @@ impl TryFrom<Spanned<String>> for Type {
     }
 }
 
-impl Display for Type {
+impl Display for ULCType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,

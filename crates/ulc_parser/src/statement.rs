@@ -1,22 +1,20 @@
-use ulc_ast::{types::Type, Expression, Function, Statement};
+use ulc_ast::{types::ULCType, BlockStatements, Expression, Function, Statement};
 use ulc_types::{
     errors::{ParseResult, SyntaxError},
     token_kind::TokenKind,
-    Filed,
 };
 
 use super::{Parser, Spanned};
 
-impl Parser<'_, '_> {
+impl Parser<'_> {
     pub fn parse_global_statement(&mut self) -> ParseResult<Statement> {
         match self.peek() {
-            TokenKind::Const => self.parse_const(),
             TokenKind::Function => self.parse_function_def(),
 
             _ => {
                 let token = self.next_token()?;
                 Err(SyntaxError::UnexpectedToken {
-                    expected: "const or function".to_owned(),
+                    expected: "function".to_owned(),
                     token,
                 })
             }
@@ -26,17 +24,10 @@ impl Parser<'_, '_> {
     pub fn parse_statement(&mut self) -> ParseResult<Statement> {
         match self.peek() {
             TokenKind::Let => self.parse_let(),
+            TokenKind::Const => self.parse_const(),
             TokenKind::Ident => {
                 let ident_token = self.consume_next(TokenKind::Ident)?;
                 let ident_text = self.text(ident_token);
-                self.checker.add_used(Filed {
-                    filename: self.filename,
-                    contents: self.input,
-                    node: Spanned {
-                        span: ident_token.span,
-                        node: ident_text,
-                    },
-                });
 
                 match self.peek() {
                     TokenKind::Assign => {
@@ -89,14 +80,6 @@ impl Parser<'_, '_> {
         let ident_name = self.consume_next(TokenKind::Ident)?;
 
         let ident_text = self.text(ident_name);
-        self.checker.add_defined(Filed {
-            filename: self.filename,
-            contents: self.input,
-            node: Spanned {
-                node: ident_text,
-                span: (ident_name.span.start..ident_name.span.end).into(),
-            },
-        });
         self.consume(TokenKind::Colon)?;
         let const_type = self.consume_type()?;
 
@@ -118,14 +101,6 @@ impl Parser<'_, '_> {
         let ident_name = self.consume_next(TokenKind::Ident)?;
 
         let ident_text = self.text(ident_name);
-        self.checker.add_defined(Filed {
-            filename: self.filename,
-            contents: self.input,
-            node: Spanned {
-                node: ident_text,
-                span: (ident_name.span.start..ident_name.span.end).into(),
-            },
-        });
         self.consume(TokenKind::Colon)?;
         let let_type = self.consume_type()?;
         self.consume(TokenKind::Assign)?;
@@ -146,14 +121,6 @@ impl Parser<'_, '_> {
         let ident = self.consume_next(TokenKind::Ident)?;
 
         let text = self.text(ident);
-        self.checker.add_defined(Filed {
-            filename: self.filename,
-            contents: self.input,
-            node: Spanned {
-                node: text,
-                span: (ident.span.start..ident.span.end).into(),
-            },
-        });
         let mut params = Vec::new();
         if self.at(TokenKind::LeftParen) {
             self.consume(TokenKind::LeftParen)?;
@@ -174,25 +141,21 @@ impl Parser<'_, '_> {
             self.consume(TokenKind::Colon)?;
             self.consume_type()?
         } else {
-            Type::Unit
+            ULCType::Unit
         };
         let body = self.parse_function_block_statements()?;
-        if let Expression::Block { statements } = body.node {
-            Ok(Spanned {
-                span: (ident.span.start..body.span.end).into(),
-                node: Statement::FunctionDefinition(Function {
-                    ident: text.to_owned(),
-                    return_type,
-                    params,
-                    body: statements,
-                }),
-            })
-        } else {
-            unreachable!()
-        }
+        Ok(Spanned {
+            span: (ident.span.start..body.span.end).into(),
+            node: Statement::FunctionDefinition(Function {
+                ident: text.to_owned(),
+                return_type,
+                params,
+                body: body.node.0,
+            }),
+        })
     }
 
-    fn parse_function_block_statements(&mut self) -> ParseResult<Expression> {
+    fn parse_function_block_statements(&mut self) -> ParseResult<BlockStatements> {
         let token = self.consume_next(TokenKind::Do)?;
         let mut statements = Vec::new();
         while !self.at(TokenKind::End) {
@@ -214,7 +177,7 @@ impl Parser<'_, '_> {
         }
         let end = self.consume_next(TokenKind::End)?;
         Ok(Spanned {
-            node: Expression::Block { statements },
+            node: BlockStatements(statements),
             span: (token.span.start..end.span.end).into(),
         })
     }

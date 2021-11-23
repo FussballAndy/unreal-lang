@@ -1,5 +1,5 @@
 [package]
-name = "ulc_checker"
+name = "ulc_middle_ast"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.44"
 
+ulc_ast = { path = "../ulc_ast" }
 ulc_types = { path = "../ulc_types" }
-

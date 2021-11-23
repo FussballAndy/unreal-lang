@@ -5,7 +5,6 @@ use std::{io::Read, path::PathBuf};
 use anyhow::Context;
 pub use types::*;
 
-use ulc_checker::CheckerContext;
 use ulc_parser::Parser;
 use ulc_types::errors::SyntaxError;
 
@@ -44,11 +43,10 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
 }
 
 fn build_input(data: BuildData, input: String, _build_config: BuildConfig) -> anyhow::Result<()> {
-    let mut checker = CheckerContext::default();
     if !data.root.join("target").exists() {
         std::fs::create_dir(data.root.join("target"))?;
     }
-    let mut parser = Parser::new(data.main_file, &input, &mut checker);
+    let mut parser = Parser::new(&input);
     let mut stmts = Vec::new();
     loop {
         match parser.parse_global_statement() {
@@ -63,8 +61,5 @@ fn build_input(data: BuildData, input: String, _build_config: BuildConfig) -> an
         }
     }
 
-    checker.check().map_err(|err| {
-        err.display();
-        anyhow::anyhow!("Abort due to error. Read error report above.")
-    })
+    Ok(())
 }
