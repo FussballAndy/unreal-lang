@@ -1,6 +1,8 @@
 pub mod errors;
 pub mod token;
 pub mod token_kind;
+mod types;
+pub use types::ULCType;
 
 use std::fmt::Display;
 
@@ -13,12 +15,8 @@ pub struct Spanned<T> {
 }
 
 impl<T> Spanned<T> {
-    pub fn map<B, C: FnMut(T) -> anyhow::Result<B>>(self, mut val: C) -> anyhow::Result<Spanned<B>> {
-        let Spanned {node, span} = self;
-        Ok(Spanned {
-            node: val(node)?,
-            span,
-        })
+    pub fn new(span: TokenSpan, node: T) -> Self {
+        Self { span, node }
     }
 }
 
@@ -26,11 +24,4 @@ impl<T: std::fmt::Display> Display for Spanned<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.node.fmt(f)
     }
-}
-
-#[derive(PartialEq)]
-pub struct Filed<'input, T> {
-    pub filename: &'input str,
-    pub contents: &'input str,
-    pub node: T,
 }

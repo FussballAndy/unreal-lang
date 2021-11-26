@@ -1,4 +1,4 @@
-use ulc_ast::types::ULCType;
+use ulc_types::ULCType;
 
 use crate::expr::BoxedExpression;
 
@@ -19,6 +19,7 @@ pub enum MiddleAstStatement {
         expr: BoxedExpression,
     },
     ReturnStatement {
+        ty: ULCType,
         expression: BoxedExpression,
     },
     UnusedExpression(BoxedExpression),

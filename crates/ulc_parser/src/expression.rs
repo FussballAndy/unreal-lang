@@ -2,7 +2,6 @@ use ulc_ast::{BoxedExpression, Expression, Lit, Statement};
 use ulc_types::{
     errors::{ParseResult, SyntaxError},
     token_kind::TokenKind,
-    Filed,
 };
 
 use super::{Parser, Spanned, SyntaxResult};
@@ -188,7 +187,13 @@ impl Parser<'_> {
         let text = self.text(token);
 
         if self.at(TokenKind::LeftParen) {
-            self.parse_function_call(text.to_owned(), token.span.start)
+            self.parse_function_call(
+                Spanned {
+                    node: text.to_owned(),
+                    span: token.span,
+                },
+                token.span.start,
+            )
         } else {
             Ok(Spanned {
                 span: token.span,
@@ -263,7 +268,7 @@ impl Parser<'_> {
 
     pub fn parse_function_call(
         &mut self,
-        lhs: String,
+        lhs: Spanned<String>,
         span_start: usize,
     ) -> ParseResult<Expression> {
         self.consume(TokenKind::LeftParen)?;

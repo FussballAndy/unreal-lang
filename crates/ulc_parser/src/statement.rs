@@ -1,7 +1,8 @@
-use ulc_ast::{types::ULCType, BlockStatements, Expression, Function, Statement};
+use ulc_ast::{BlockStatements, Expression, Function, Statement};
 use ulc_types::{
     errors::{ParseResult, SyntaxError},
     token_kind::TokenKind,
+    ULCType,
 };
 
 use super::{Parser, Spanned};
@@ -36,14 +37,22 @@ impl Parser<'_> {
                         Ok(Spanned {
                             span: (ident_token.span.start..expr.span.end).into(),
                             node: Statement::Assignment {
-                                name: ident_text.to_owned(),
+                                name: Spanned {
+                                    node: ident_text.to_owned(),
+                                    span: ident_token.span,
+                                },
                                 expr: Box::new(expr),
                             },
                         })
                     }
                     TokenKind::LeftParen => {
-                        let expr = self
-                            .parse_function_call(ident_text.to_owned(), ident_token.span.start)?;
+                        let expr = self.parse_function_call(
+                            Spanned {
+                                node: ident_text.to_owned(),
+                                span: ident_token.span,
+                            },
+                            ident_token.span.start,
+                        )?;
                         Ok(Spanned {
                             span: expr.span,
                             node: Statement::UnusedExpression(Box::new(expr)),
@@ -89,7 +98,10 @@ impl Parser<'_> {
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
             node: Statement::Const {
-                name: ident_text.to_owned(),
+                name: Spanned {
+                    node: ident_text.to_owned(),
+                    span: ident_name.span,
+                },
                 const_type,
                 expr: Box::new(expr),
             },
@@ -109,7 +121,10 @@ impl Parser<'_> {
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
             node: Statement::Let {
-                name: ident_text.to_owned(),
+                name: Spanned {
+                    node: ident_text.to_owned(),
+                    span: ident_name.span,
+                },
                 let_type,
                 expr: Box::new(expr),
             },
@@ -147,7 +162,10 @@ impl Parser<'_> {
         Ok(Spanned {
             span: (ident.span.start..body.span.end).into(),
             node: Statement::FunctionDefinition(Function {
-                ident: text.to_owned(),
+                ident: Spanned {
+                    node: text.to_owned(),
+                    span: ident.span,
+                },
                 return_type,
                 params,
                 body: body.node.0,

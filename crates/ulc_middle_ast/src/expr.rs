@@ -1,5 +1,5 @@
 use ulc_ast::Lit;
-use ulc_types::{Spanned, token_kind::TokenKind};
+use ulc_types::{errors::SyntaxError, token_kind::TokenKind, Spanned};
 
 use crate::stmt::MiddleAstStatement;
 
@@ -37,13 +37,13 @@ pub enum UnaryOperator {
 }
 
 impl TryFrom<TokenKind> for UnaryOperator {
-    type Error = anyhow::Error;
+    type Error = SyntaxError;
 
     fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
         match value {
             TokenKind::Minus => Ok(Self::Minus),
             TokenKind::Not => Ok(Self::Not),
-            _ => anyhow::bail!("Invalid token!")
+            _ => unreachable!(),
         }
     }
 }
@@ -65,7 +65,7 @@ pub enum BinaryOperator {
 }
 
 impl TryFrom<TokenKind> for BinaryOperator {
-    type Error = anyhow::Error;
+    type Error = SyntaxError;
 
     fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
         match value {
@@ -81,7 +81,7 @@ impl TryFrom<TokenKind> for BinaryOperator {
             TokenKind::Minus => Ok(Self::Minus),
             TokenKind::Multiply => Ok(Self::Multiply),
             TokenKind::Divide => Ok(Self::Divide),
-            _ => anyhow::bail!("Invalid token!")
+            _ => unreachable!(),
         }
     }
 }

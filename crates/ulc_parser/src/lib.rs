@@ -1,12 +1,12 @@
 use std::iter::Peekable;
 
-use ulc_ast::{types::ULCType, Expression, Statement};
+use ulc_ast::{Expression, Statement};
 use ulc_lexer::Lexer;
 use ulc_types::{
     errors::{ParseResult, SyntaxError, SyntaxResult},
     token::Token,
     token_kind::TokenKind,
-    Spanned,
+    Spanned, ULCType,
 };
 
 mod expression;
@@ -18,9 +18,7 @@ pub struct Parser<'input> {
 }
 
 impl<'input> Parser<'input> {
-    pub fn new(
-        input: &'input str,
-    ) -> Self {
+    pub fn new(input: &'input str) -> Self {
         Self {
             input,
             lexer: Lexer::new(input).peekable(),
@@ -113,7 +111,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                                     span: d.span,
                                     node:
                                         "Expected return statement! Perhaps remove the semicolon."
-                                            .to_owned(),
+                                      ,
                                 },
                             })
                         }
@@ -122,7 +120,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                             span: expr.span,
                             sp_msg: Spanned {
                                 span: expr.span,
-                                node: "False case is missing return statement!".to_owned(),
+                                node: "False case is missing return statement!",
                             },
                         })
                     }
@@ -131,7 +129,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                         span: expr.span,
                         sp_msg: Spanned {
                             span: expr.span,
-                            node: "Missing false case!".to_owned(),
+                            node: "Missing false case!",
                         },
                     })
                 }
@@ -140,7 +138,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                     span: expr.span,
                     sp_msg: Spanned {
                         span: a.span,
-                        node: "Expected return statement! Perhaps remove the semicolon.".to_owned(),
+                        node: "Expected return statement! Perhaps remove the semicolon.",
                     },
                 })
             }
@@ -149,7 +147,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                 span: expr.span,
                 sp_msg: Spanned {
                     span: expr.span,
-                    node: "True case is missing return statement!".to_owned(),
+                    node: "True case is missing return statement!",
                 },
             })
         }

@@ -1,4 +1,4 @@
-use crate::token::TokenSpan;
+use crate::{token::TokenSpan, types::ULCType};
 
 use super::token::Token;
 use codespan_reporting::{
@@ -26,9 +26,22 @@ pub enum SyntaxError {
     InvalidToken(Token),
     InvalidIdent(Spanned<String>),
     InvalidType(Spanned<String>),
+    NotMutableVar(Spanned<String>),
     InvalidIfExpression {
         span: TokenSpan,
-        sp_msg: Spanned<String>,
+        sp_msg: Spanned<&'static str>,
+    },
+    AlreadyDeclaredVar(Spanned<String>),
+    AlreadyDeclaredFunc(Spanned<String>, Spanned<String>),
+    NotMatchingType {
+        expected: ULCType,
+        got: ULCType,
+        span: TokenSpan,
+    },
+    FuncCallArgAmount {
+        func_sig: String,
+        span: TokenSpan,
+        m_or_l: bool,
     },
 
     End,
@@ -76,6 +89,40 @@ impl SyntaxError {
                     Label::secondary(file_id, sp_msg.span).with_message(sp_msg.node.clone()),
                 ])
             }
+            Self::NotMutableVar(var) => Diagnostic::error()
+                .with_message("Variable is not mutable!")
+                .with_labels(vec![
+                    Label::primary(file_id, var.span).with_message("Declared using const, not let")
+                ]),
+            Self::AlreadyDeclaredVar(var) => Diagnostic::error()
+                .with_message("Variable already declared")
+                .with_labels(vec![
+                    Label::primary(file_id, var.span).with_message("Variable already declared!")
+                ]),
+            Self::AlreadyDeclaredFunc(alr_func, func) => Diagnostic::error()
+                .with_message("Function already declared!")
+                .with_labels(vec![
+                    Label::primary(file_id, alr_func.span).with_message("Function declared here!"),
+                    Label::secondary(file_id, func.span).with_message("Later again declared here!"),
+                ]),
+            Self::NotMatchingType {
+                expected,
+                got,
+                span,
+            } => Diagnostic::error()
+                .with_message(format!(
+                    "Types are not matching! Expected: {}, Got: {}",
+                    expected, got
+                ))
+                .with_labels(vec![Label::primary(file_id, *span).with_message(format!(
+                    "Expression returns {}. Expected {}.",
+                    got, expected
+                ))]),
+            Self::FuncCallArgAmount { func_sig, span, m_or_l } => Diagnostic::error()
+                .with_message(format!("Too {} arguments provided! Function signature is {}", if *m_or_l {"many"} else {"few"}, func_sig))
+                .with_labels(vec![
+                    Label::primary(file_id, *span),
+                ]),
             Self::End => unreachable!(),
         };
 

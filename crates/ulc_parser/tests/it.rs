@@ -1,6 +1,6 @@
-use ulc_ast::{types::ULCType, Expression, Function, Lit, Statement};
+use ulc_ast::{Expression, Function, Lit, Statement};
 use ulc_parser::Parser;
-use ulc_types::{token_kind::TokenKind, Spanned};
+use ulc_types::{token_kind::TokenKind, Spanned, ULCType};
 
 #[test]
 fn global_function() {
@@ -16,14 +16,14 @@ fn global_function() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: "main".to_owned(),
+                    ident: Spanned::new((18..22).into(), "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![
                         Spanned {
                             span: (42..52).into(),
                             node: Statement::Let {
-                                name: "a".to_owned(),
+                                name: Spanned::new((42..43).into(), "a".to_owned()),
                                 let_type: ULCType::Int,
                                 expr: Box::new(Spanned {
                                     span: (51..52).into(),
@@ -36,7 +36,7 @@ fn global_function() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (66..76).into(),
                                 node: Expression::FunctionCall {
-                                    function: "println".to_owned(),
+                                    function: Spanned::new((66..73).into(), "println".to_owned()),
                                     args: vec![Spanned {
                                         span: (74..75).into(),
                                         node: Expression::Ident("a".to_owned()),
@@ -68,7 +68,7 @@ fn block_return() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: "main".to_owned(),
+                    ident: Spanned::new((18..22).into(), "main".to_owned()),
                     return_type: ULCType::Unit,
                     params: Vec::new(),
                     body: vec![Spanned {
@@ -103,13 +103,13 @@ fn if_expr() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: "main".to_owned(),
+                    ident: Spanned::new((18..22).into(), "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![Spanned {
                         span: (44..80).into(),
                         node: Statement::Const {
-                            name: "a".to_owned(),
+                            name: Spanned::new((44..45).into(), "a".to_owned()),
                             const_type: ULCType::Int,
                             expr: Box::new(Spanned {
                                 span: (53..80).into(),

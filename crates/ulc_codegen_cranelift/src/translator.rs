@@ -4,7 +4,8 @@ use cranelift::codegen::ir::types;
 use cranelift::prelude::*;
 use cranelift_module::Module;
 use cranelift_object::ObjectModule;
-use ulc_ast::{types::ULCType, Expression, Function, Lit, Statement};
+use ulc_ast::{Expression, Function, Lit, Statement};
+use ulc_types::ULCType;
 
 fn convert_type(ty: ULCType, tcf: isa::TargetFrontendConfig) -> Type {
     match ty {
@@ -71,7 +72,7 @@ fn walk_lets_stmt(let_vec: &mut Vec<(String, ULCType)>, root: &Statement) {
             expr,
             let_type,
         } => {
-            let_vec.push((name.clone(), let_type.clone()));
+            let_vec.push((name.node.clone(), let_type.clone()));
             walk_lets_expr(let_vec, &expr.node);
         }
         Statement::Assignment { expr, .. } => {

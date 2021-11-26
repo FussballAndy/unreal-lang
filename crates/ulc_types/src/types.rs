@@ -1,8 +1,8 @@
 use std::fmt::Display;
 
-use ulc_types::{errors::SyntaxError, Spanned};
+use crate::{errors::SyntaxError, Spanned};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ULCType {
     Int,
     String,
@@ -36,5 +36,16 @@ impl Display for ULCType {
                 Self::Bool => "Bool",
             }
         )
+    }
+}
+
+impl From<&ULCType> for &str {
+    fn from(ty: &ULCType) -> Self {
+        match ty {
+            ULCType::Bool => "Bool",
+            ULCType::Int => "Int",
+            ULCType::Unit => "()",
+            ULCType::String => "String"
+        }
     }
 }
