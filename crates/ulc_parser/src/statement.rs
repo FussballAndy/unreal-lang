@@ -158,7 +158,7 @@ impl Parser<'_> {
         } else {
             ULCType::Unit
         };
-        let body = self.parse_function_block_statements()?;
+        let body = self.parse_function_block_statements(return_type)?;
         Ok(Spanned {
             span: (ident.span.start..body.span.end).into(),
             node: Statement::FunctionDefinition(Function {
@@ -173,17 +173,21 @@ impl Parser<'_> {
         })
     }
 
-    fn parse_function_block_statements(&mut self) -> ParseResult<BlockStatements> {
+    fn parse_function_block_statements(&mut self, ret_ty: ULCType) -> ParseResult<BlockStatements> {
         let token = self.consume_next(TokenKind::Do)?;
         let mut statements = Vec::new();
         while !self.at(TokenKind::End) {
             let stmt = self.parse_statement()?;
             if !self.at(TokenKind::Semicolon) {
-                if let Statement::UnusedExpression(e) = stmt.node {
-                    statements.push(Spanned {
-                        node: Statement::ReturnStatement { expression: e },
-                        span: stmt.span,
-                    });
+                if ret_ty != ULCType::Unit {
+                    if let Statement::UnusedExpression(e) = stmt.node {
+                        statements.push(Spanned {
+                            node: Statement::ReturnStatement { expression: e },
+                            span: stmt.span,
+                        });
+                    } else {
+                        statements.push(stmt);
+                    }
                 } else {
                     statements.push(stmt);
                 }

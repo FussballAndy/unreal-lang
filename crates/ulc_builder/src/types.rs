@@ -22,5 +22,5 @@ pub struct Binary {
 
 pub struct BuildConfig {
     pub abort: bool,
-    pub emit_llvm: bool,
+    pub emit_clif: bool,
 }

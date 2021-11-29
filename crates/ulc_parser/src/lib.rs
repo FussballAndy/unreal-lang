@@ -110,8 +110,7 @@ pub(crate) fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseRes
                                 sp_msg: Spanned {
                                     span: d.span,
                                     node:
-                                        "Expected return statement! Perhaps remove the semicolon."
-                                      ,
+                                        "Expected return statement! Perhaps remove the semicolon.",
                                 },
                             })
                         }

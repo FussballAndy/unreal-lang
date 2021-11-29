@@ -5,17 +5,17 @@ use crate::expr::BoxedExpression;
 #[derive(Clone, Debug, PartialEq)]
 pub enum MiddleAstStatement {
     Const {
-        name: u32,
+        name: usize,
         const_type: ULCType,
         expr: BoxedExpression,
     },
     Let {
-        name: u32,
+        name: usize,
         let_type: ULCType,
         expr: BoxedExpression,
     },
     Assignment {
-        name: u32,
+        name: usize,
         expr: BoxedExpression,
     },
     ReturnStatement {

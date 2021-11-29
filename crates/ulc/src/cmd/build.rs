@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use ulc_builder::{BuildConfig, Config};
 
 pub fn execute(args: &ArgMatches) -> anyhow::Result<()> {
+    crate::cmd::doctor::execute().context("Doctor failed! Run 'ulc doctor' to find out why.")?;
     let path = if let Some(path_str) = args.value_of("DIRECTORY") {
         PathBuf::from(path_str)
     } else {
@@ -15,7 +16,7 @@ pub fn execute(args: &ArgMatches) -> anyhow::Result<()> {
     };
     let build_config = BuildConfig {
         abort: args.value_of("abort").is_some(),
-        emit_llvm: args.value_of("clir").is_some(),
+        emit_clif: args.value_of("clir").is_some(),
     };
     let mut config_file =
         File::open(path.join("config.toml")).context("File 'config.toml' not found!")?;

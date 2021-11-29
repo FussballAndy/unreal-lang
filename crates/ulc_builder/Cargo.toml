@@ -10,5 +10,7 @@ anyhow = "1.0.44"
 log = "0.4.14"
 serde = { version = "1.0.130", features = ["derive"] }
 
+ulc_codegen_cranelift = { path = "../ulc_codegen_cranelift" }
+ulc_middle_ast = { path = "../ulc_middle_ast" }
 ulc_parser = { path = "../ulc_parser" }
 ulc_types = { path = "../ulc_types" }

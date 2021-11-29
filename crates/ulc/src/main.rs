@@ -14,6 +14,7 @@ fn main() {
     let res = match app.get_matches().subcommand() {
         ("new", Some(sub_matches)) => cmd::new::execute(sub_matches),
         ("build", Some(sub_matches)) => cmd::build::execute(sub_matches),
+        ("doctor", Some(_)) => cmd::doctor::execute(),
         _ => unreachable!(),
     };
 
@@ -62,6 +63,9 @@ fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
                         .short("E")
                         .help("Emit LLVM source."),
                 ),
+        )
+        .subcommand(
+            SubCommand::with_name("doctor").about("Check if everything is set up correctly!"),
         )
 }
 

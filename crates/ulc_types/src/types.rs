@@ -45,7 +45,7 @@ impl From<&ULCType> for &str {
             ULCType::Bool => "Bool",
             ULCType::Int => "Int",
             ULCType::Unit => "()",
-            ULCType::String => "String"
+            ULCType::String => "String",
         }
     }
 }

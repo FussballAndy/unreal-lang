@@ -1,33 +1,52 @@
 use ulc_ast::Lit;
-use ulc_types::{errors::SyntaxError, token_kind::TokenKind, Spanned};
+use ulc_types::{errors::SyntaxError, token_kind::TokenKind, ULCType};
 
 use crate::stmt::MiddleAstStatement;
 
-pub type BoxedExpression = Box<Spanned<MiddleAstExpression>>;
-pub type Expressions = Vec<Spanned<MiddleAstExpression>>;
+pub type BoxedExpression = Box<MiddleAstExpression>;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MiddleAstExpression {
     Literal(Lit),
-    Ident(u32),
+    Ident(usize),
     FunctionCall {
         function: String,
-        args: Expressions,
+        args: Vec<(MiddleAstExpression, ULCType)>,
+        ret_ty: ULCType,
     },
-    BinaryOperation {
+    BinaryOperation(MiddleAstBinaryOperation),
+    UnaryOperation(MiddleAstUnaryOperation),
+    IfExpr {
+        condition: BoxedExpression,
+        true_case: Vec<MiddleAstStatement>,
+        false_case: Vec<MiddleAstStatement>,
+        ret_ty: Option<ULCType>,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MiddleAstBinaryOperation {
+    Calc {
         op: BinaryOperator,
         lhs: BoxedExpression,
         rhs: BoxedExpression,
     },
-    UnaryOperation {
-        op: UnaryOperator,
-        expr: BoxedExpression,
+    Comb {
+        op: BinaryOperator,
+        lhs: BoxedExpression,
+        rhs: BoxedExpression,
     },
-    IfExpr {
-        condition: BoxedExpression,
-        true_case: Vec<Spanned<MiddleAstStatement>>,
-        false_case: Option<Vec<Spanned<MiddleAstStatement>>>,
+    Comp {
+        op: BinaryOperator,
+        lhs: BoxedExpression,
+        rhs: BoxedExpression,
     },
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum MiddleAstUnaryOperation {
+    Minus(BoxedExpression),
+    Invert(BoxedExpression),
 }
 
 #[derive(Clone, Debug, PartialEq)]

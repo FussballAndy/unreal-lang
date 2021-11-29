@@ -1,23 +1,30 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::Context;
 use cranelift::codegen;
+use cranelift::codegen::ir::Function;
 use cranelift::prelude::*;
 use cranelift_module::DataContext;
+use cranelift_module::FuncId;
+use cranelift_module::Linkage;
 use cranelift_module::Module;
 use cranelift_object::ObjectBuilder;
 use cranelift_object::ObjectModule;
 use target_lexicon::Triple;
-use ulc_ast::Statement;
-use ulc_types::Spanned;
+use ulc_middle_ast::MiddleAstFunction;
+use ulc_middle_ast::MiddleAstRoot;
 
 mod translator;
+mod utils;
+pub(crate) use utils::convert_type;
 
 pub struct CraneliftCodegonBackend {
     builder_context: FunctionBuilderContext,
     ctx: codegen::Context,
     data_ctx: DataContext,
     module: ObjectModule,
+    buffer: String,
 }
 
 impl CraneliftCodegonBackend {
@@ -38,34 +45,65 @@ impl CraneliftCodegonBackend {
             ctx: module.make_context(),
             data_ctx: DataContext::new(),
             module,
+            buffer: Default::default(),
         }
     }
 
-    pub fn compile(&mut self, stmts: Vec<Spanned<Statement>>) -> anyhow::Result<()> {
-        for stmt in stmts {
-            self.translate_top(stmt.node)?;
+    pub fn compile(&mut self, root: MiddleAstRoot) -> anyhow::Result<()> {
+        let mut func_ids = HashMap::new();
+        for stmt in &root.root_functions {
+            let sig = self.create_signature(stmt);
+            let id = self
+                .module
+                .declare_function(&stmt.ident, Linkage::Export, &sig)?;
+            let func = Function::with_name_signature(ExternalName::testcase(&stmt.ident), sig);
+            func_ids.insert(stmt.ident.clone(), (id, func));
         }
-        Ok(())
-    }
-
-    fn translate_top(&mut self, stmt: Statement) -> anyhow::Result<()> {
-        match stmt {
-            Statement::FunctionDefinition(func) => {
-                translator::translate_func(
-                    &mut self.module,
-                    &mut self.ctx,
-                    &mut self.builder_context,
-                    func,
-                )?;
-            }
-            _ => unreachable!(),
+        for stmt in root.root_functions {
+            let (func_id, ir_func) = func_ids.remove(&stmt.ident).unwrap();
+            self.translate_func(stmt, func_id, ir_func)?;
         }
         Ok(())
     }
 
-    pub fn finish(self, res_file: &Path) -> anyhow::Result<()> {
+    fn create_signature(&mut self, func: &MiddleAstFunction) -> Signature {
+        let mut sig = self.module.make_signature();
+        for param in &func.params {
+            sig.params.push(AbiParam::new(convert_type(
+                param.1,
+                self.module.target_config(),
+            )));
+        }
+        sig.returns.push(AbiParam::new(convert_type(
+            func.return_type,
+            self.module.target_config(),
+        )));
+
+        sig
+    }
+
+    fn translate_func(
+        &mut self,
+        func: MiddleAstFunction,
+        func_id: FuncId,
+        cl_fun: Function,
+    ) -> anyhow::Result<()> {
+        self.ctx.func = cl_fun;
+        translator::translate_func(
+            &mut self.module,
+            &mut self.ctx,
+            &mut self.data_ctx,
+            &mut self.builder_context,
+            &mut self.buffer,
+            func,
+            func_id,
+        )
+    }
+
+    pub fn finish(self, ir_file: &Path, object_file: &Path) -> anyhow::Result<()> {
+        std::fs::write(ir_file, self.buffer)?;
         let product = self.module.finish();
         let obj = product.object.write().unwrap();
-        std::fs::write(res_file, obj).context("Failed to write object file!")
+        std::fs::write(object_file, obj).context("Failed to write object file!")
     }
 }

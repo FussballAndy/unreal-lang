@@ -34,7 +34,7 @@ pub enum SyntaxError {
     AlreadyDeclaredVar(Spanned<String>),
     AlreadyDeclaredFunc(Spanned<String>, Spanned<String>),
     NotMatchingType {
-        expected: ULCType,
+        expected: Vec<ULCType>,
         got: ULCType,
         span: TokenSpan,
     },
@@ -43,6 +43,15 @@ pub enum SyntaxError {
         span: TokenSpan,
         m_or_l: bool,
     },
+    NotSupported {
+        span: TokenSpan,
+        message: &'static str,
+    },
+
+    /// An error that appears if someone breaks the matrix
+    /// and somehow manages to get a statement somewhere
+    /// where it does not belong!
+    MessedUpMatrix(TokenSpan),
 
     End,
 }
@@ -86,7 +95,7 @@ impl SyntaxError {
             Self::InvalidIfExpression { span, sp_msg } => {
                 Diagnostic::error().with_message("").with_labels(vec![
                     Label::primary(file_id, *span),
-                    Label::secondary(file_id, sp_msg.span).with_message(sp_msg.node.clone()),
+                    Label::secondary(file_id, sp_msg.span).with_message(sp_msg.node),
                 ])
             }
             Self::NotMutableVar(var) => Diagnostic::error()
@@ -111,18 +120,40 @@ impl SyntaxError {
                 span,
             } => Diagnostic::error()
                 .with_message(format!(
-                    "Types are not matching! Expected: {}, Got: {}",
-                    expected, got
+                    "Types are not matching! Expected: [{}], Got: {}",
+                    expected
+                        .iter()
+                        .map(|e| e.into())
+                        .collect::<Vec<&str>>()
+                        .join(", "),
+                    got
                 ))
                 .with_labels(vec![Label::primary(file_id, *span).with_message(format!(
                     "Expression returns {}. Expected {}.",
-                    got, expected
+                    got,
+                    expected
+                        .iter()
+                        .map(|e| e.into())
+                        .collect::<Vec<&str>>()
+                        .join(", ")
                 ))]),
-            Self::FuncCallArgAmount { func_sig, span, m_or_l } => Diagnostic::error()
-                .with_message(format!("Too {} arguments provided! Function signature is {}", if *m_or_l {"many"} else {"few"}, func_sig))
-                .with_labels(vec![
-                    Label::primary(file_id, *span),
-                ]),
+            Self::FuncCallArgAmount {
+                func_sig,
+                span,
+                m_or_l,
+            } => Diagnostic::error()
+                .with_message(format!(
+                    "Too {} arguments provided! Function signature is {}",
+                    if *m_or_l { "many" } else { "few" },
+                    func_sig
+                ))
+                .with_labels(vec![Label::primary(file_id, *span)]),
+            Self::MessedUpMatrix(sp) => Diagnostic::error()
+                .with_message("Please stop rigging the matrix!")
+                .with_labels(vec![Label::primary(file_id, *sp)]),
+            Self::NotSupported { span, message } => Diagnostic::error()
+                .with_message(*message)
+                .with_labels(vec![Label::primary(file_id, *span)]),
             Self::End => unreachable!(),
         };
 

@@ -4,19 +4,32 @@ mod stmt;
 
 use std::collections::HashMap;
 
-use func::MiddleAstFunction;
+use convert_case::{Case, Casing};
 use ulc_ast::{Function, Statement};
 use ulc_types::{errors::SyntaxError, Spanned, ULCType};
 
+pub use expr::{
+    BinaryOperator, MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation,
+    UnaryOperator,
+};
+pub use func::MiddleAstFunction;
+pub use stmt::MiddleAstStatement;
+
 pub struct MiddleAstRoot {
-    root_functions: Vec<Spanned<MiddleAstFunction>>,
+    pub root_functions: Vec<MiddleAstFunction>,
 }
 
 pub(crate) struct FuncData {
     ident: Spanned<String>,
     ret_ty: ULCType,
     param_tys: Vec<ULCType>,
-} 
+}
+
+impl Default for MiddleAstRoot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MiddleAstRoot {
     pub fn new() -> Self {
@@ -33,20 +46,21 @@ impl MiddleAstRoot {
         let mut funcs = Vec::new();
         for st in stmts {
             if let Statement::FunctionDefinition(func) = st.node {
+                let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
                 names.insert(
-                    func.ident.node.clone(),
+                    idt.node.clone(),
                     FuncData {
-                        ident: func.ident.clone(),
+                        ident: idt,
                         ret_ty: func.return_type,
-                        param_tys: func.params.iter().map(|a| a.1.clone()).collect()
-                    }
+                        param_tys: func.params.iter().map(|a| a.1).collect(),
+                    },
                 );
                 funcs.push(Spanned {
                     node: func,
                     span: st.span,
                 });
             } else {
-                return Err(MiddleAstFunctionError::NotAFunction(st));
+                return Err(MiddleAstFunctionError(SyntaxError::MessedUpMatrix(st.span)));
             }
         }
 
@@ -62,16 +76,11 @@ impl MiddleAstRoot {
         known_funcs: &HashMap<String, FuncData>,
         func: Spanned<Function>,
     ) -> Result<(), MiddleAstFunctionError> {
-        let Spanned { span, node } = func;
-        Ok(self.root_functions.push(Spanned {
-            span,
-            node: func::MiddleAstFunction::new(known_funcs, node)
-                .map_err(|err| MiddleAstFunctionError::Syntax(err))?,
-        }))
+        let Spanned { node, .. } = func;
+        self.root_functions
+            .push(MiddleAstFunction::new(known_funcs, node).map_err(MiddleAstFunctionError)?);
+        Ok(())
     }
 }
 
-pub enum MiddleAstFunctionError {
-    Syntax(SyntaxError),
-    NotAFunction(Spanned<Statement>),
-}
+pub struct MiddleAstFunctionError(pub SyntaxError);
