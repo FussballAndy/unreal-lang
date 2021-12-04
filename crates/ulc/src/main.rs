@@ -61,6 +61,12 @@ fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
                         .long("emit-clir")
                         .short("E")
                         .help("Emit LLVM source."),
+                )
+                .arg(
+                    Arg::with_name("verbose")
+                        .long("verbose")
+                        .short("v")
+                        .help("Toggle Verbose logging."),
                 ),
         )
         .subcommand(

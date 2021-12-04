@@ -236,9 +236,7 @@ impl<'a> FunctionTranslator<'a> {
                 let callee = self
                     .module
                     .declare_function(&function, Linkage::Export, &sig)?;
-                let local_callee = self
-                    .module
-                    .declare_func_in_func(callee, self.builder.func);
+                let local_callee = self.module.declare_func_in_func(callee, self.builder.func);
 
                 let mut arg_values = Vec::new();
                 for arg in args {

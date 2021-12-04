@@ -2,7 +2,7 @@ mod types;
 
 use std::{
     io::Read,
-    path::{PathBuf, Path},
+    path::{Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -58,11 +58,13 @@ fn build_input(
     data: BuildData,
     input: String,
     config: Config,
-    _build_config: BuildConfig,
+    build_config: BuildConfig,
 ) -> anyhow::Result<()> {
     if !data.root.join("target").exists() {
         std::fs::create_dir(data.root.join("target"))?;
-        log::info!("Created target directory.");
+        if build_config.verbose {
+            log::info!("Created target directory.");
+        }
     }
     if !data.root.join("target").join("clif").exists() {
         std::fs::create_dir(data.root.join("target").join("clif"))?;
@@ -74,7 +76,9 @@ fn build_input(
     let mut parser = Parser::new(&input);
     let mut stmts = Vec::new();
 
-    log::info!("Starting parser.");
+    if build_config.verbose {
+        log::info!("Starting parser.");
+    }
 
     loop {
         match parser.parse_global_statement() {
@@ -89,7 +93,9 @@ fn build_input(
         }
     }
 
-    log::info!("Finished parser.");
+    if build_config.verbose {
+        log::info!("Finished parser.");
+    }
 
     let mut root = MiddleAstRoot::new();
 
@@ -98,7 +104,9 @@ fn build_input(
         anyhow::anyhow!("Aborted due to error. Read error report above.")
     })?;
 
-    log::info!("Checked code! Everythings fine.");
+    if build_config.verbose {
+        log::info!("Checked code! Everythings fine.");
+    }
 
     let mut codegen = CraneliftCodegonBackend::new(data.main_file);
     log::info!("Starting compilation.");
@@ -166,10 +174,6 @@ fn canonicalize<P: AsRef<Path>>(path: P) -> anyhow::Result<String> {
     let pat = path.as_ref();
     let can_path = std::fs::canonicalize(pat)?;
     let can = can_path.to_str().unwrap();
-    let ret = if cfg!(windows) {
-        &can[4..]
-    } else {
-        can
-    };
+    let ret = if cfg!(windows) { &can[4..] } else { can };
     Ok(ret.to_owned())
 }

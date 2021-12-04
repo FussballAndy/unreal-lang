@@ -23,4 +23,5 @@ pub struct Binary {
 pub struct BuildConfig {
     pub abort: bool,
     pub emit_clir: bool,
+    pub verbose: bool,
 }

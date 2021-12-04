@@ -17,6 +17,7 @@ pub fn execute(args: &ArgMatches) -> anyhow::Result<()> {
     let build_config = BuildConfig {
         abort: args.value_of("abort").is_some(),
         emit_clir: args.value_of("clir").is_some(),
+        verbose: args.value_of("verbose").is_some(),
     };
     let mut config_file =
         File::open(path.join("config.toml")).context("File 'config.toml' not found!")?;
