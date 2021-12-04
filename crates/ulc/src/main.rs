@@ -79,7 +79,7 @@ fn init_logger() {
             ))
         })
         .level(LevelFilter::Info)
-        .level_for("cranelift_codegen", LevelFilter::Off)
+        .level_for("cranelift_object", LevelFilter::Off)
         .chain(std::io::stdout())
         .apply()
         .unwrap();

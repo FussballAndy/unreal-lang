@@ -2,7 +2,7 @@ mod types;
 
 use std::{
     io::Read,
-    path::PathBuf,
+    path::{PathBuf, Path},
     process::{Command, Stdio},
 };
 
@@ -39,7 +39,7 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
     let mut contents = String::new();
     let mut file = std::fs::File::open(&entry_file_path).context(format!(
         "The entry file '{}' was not found!",
-        std::fs::canonicalize(&entry_file_path)?.to_str().unwrap()
+        &canonicalize(&entry_file_path)?
     ))?;
     file.read_to_string(&mut contents)?;
 
@@ -136,7 +136,7 @@ fn build_input(
     };
 
     clang_cmd.args([
-        std::fs::canonicalize(&obj_path)?.to_str().unwrap(),
+        &canonicalize(&obj_path)?,
         "-o",
         output_path.to_str().unwrap(),
     ]);
@@ -147,7 +147,7 @@ fn build_input(
     if clang_res.success() {
         log::info!(
             "Finished linking! Executable was put in {}!",
-            std::fs::canonicalize(output_path)?.to_str().unwrap()
+            &canonicalize(output_path)?
         );
         Ok(())
     } else {
@@ -160,4 +160,16 @@ fn build_input(
         log::error!("Encountered the following Clang error: \n{}", err);
         Err(anyhow::anyhow!("Read the Clang error above!"))
     }
+}
+
+fn canonicalize<P: AsRef<Path>>(path: P) -> anyhow::Result<String> {
+    let pat = path.as_ref();
+    let can_path = std::fs::canonicalize(pat)?;
+    let can = can_path.to_str().unwrap();
+    let ret = if cfg!(windows) {
+        &can[4..]
+    } else {
+        can
+    };
+    Ok(ret.to_owned())
 }

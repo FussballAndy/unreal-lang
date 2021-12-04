@@ -175,7 +175,7 @@ impl Parser<'_> {
                 ),
                 TokenKind::StringLit => Lit::String(
                     // Trim the quotes
-                    text[1..(text.len() - 1)].to_string(),
+                    text[1..(text.len() - 1)].to_string() + "\0",
                 ),
                 _ => unreachable!(),
             }),
