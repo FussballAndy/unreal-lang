@@ -41,7 +41,7 @@ fn intern_translate_func(
     ctx: &mut codegen::Context,
     data_ctx: &mut DataContext,
     bctx: &mut FunctionBuilderContext,
-    func: MiddleAstFunction,
+    mut func: MiddleAstFunction,
 ) -> anyhow::Result<()> {
     let mut builder = FunctionBuilder::new(&mut ctx.func, bctx);
     let entry_block = builder.create_block();
@@ -64,13 +64,24 @@ fn intern_translate_func(
         data_ctx,
 
         cur_ident: None,
+        cur_unused_ident: 0,
 
         const_variables,
         stack_slots: HashMap::new(),
     };
 
+    let last = func.body.pop();
+
     for stmt in func.body {
         trans.translate_stmt(stmt)?;
+    }
+
+    if let Some(last_stmt) = last {
+        let is_ret = matches!(&last_stmt, MiddleAstStatement::ReturnStatement { .. });
+        trans.translate_stmt(last_stmt)?;
+        if !is_ret {
+            trans.builder.ins().return_(&[]);
+        }
     }
 
     trans.builder.finalize();
@@ -83,6 +94,7 @@ struct FunctionTranslator<'a> {
     data_ctx: &'a mut DataContext,
 
     cur_ident: Option<usize>,
+    cur_unused_ident: usize,
 
     const_variables: HashMap<usize, Variable>,
     stack_slots: HashMap<usize, (StackSlot, ULCType)>,
@@ -96,7 +108,7 @@ impl<'a> FunctionTranslator<'a> {
                 let_type,
                 expr,
             } => {
-                let ir_ty = convert_type(let_type, self.module.target_config());
+                let ir_ty = convert_type(let_type, self.module.target_config(), false);
                 let stack_slot = self.builder.create_stack_slot(StackSlotData::new(
                     StackSlotKind::ExplicitSlot,
                     ir_ty.bytes(),
@@ -123,7 +135,7 @@ impl<'a> FunctionTranslator<'a> {
 
                 self.builder.declare_var(
                     variable,
-                    convert_type(const_type, self.module.target_config()),
+                    convert_type(const_type, self.module.target_config(), false),
                 );
                 self.builder.def_var(variable, val);
 
@@ -143,13 +155,20 @@ impl<'a> FunctionTranslator<'a> {
     fn translate_expr(&mut self, expr: MiddleAstExpression) -> anyhow::Result<Value> {
         Ok(match expr {
             MiddleAstExpression::Literal(lit) => match lit {
-                Lit::Unit => todo!(),
+                Lit::Unit => self.builder.ins().iconst(types::I8, 0),
                 Lit::Bool(b) => self.builder.ins().bconst(types::B1, b),
                 Lit::Int(i) => self.builder.ins().iconst(types::I32, i as i64),
                 Lit::String(s) => {
-                    let name = &format!("string_lit_{}", self.cur_ident.unwrap());
+                    let string_lit_id = if let Some(cur_i) = self.cur_ident {
+                        cur_i.to_string()
+                    } else {
+                        let cui = self.cur_unused_ident;
+                        self.cur_unused_ident += 1;
+                        "unused_".to_owned() + &cui.to_string()
+                    };
+                    let name = &format!("string_lit_{}", string_lit_id);
                     let id = self.create_data(name, s.into_bytes())?;
-                    let local_id = self.module.declare_data_in_func(id, &mut self.builder.func);
+                    let local_id = self.module.declare_data_in_func(id, self.builder.func);
                     self.builder
                         .ins()
                         .symbol_value(self.module.target_config().pointer_type(), local_id)
@@ -202,20 +221,24 @@ impl<'a> FunctionTranslator<'a> {
                     sig.params.push(AbiParam::new(convert_type(
                         arg.1,
                         self.module.target_config(),
+                        false,
                     )));
                 }
 
-                sig.returns.push(AbiParam::new(convert_type(
-                    ret_ty,
-                    self.module.target_config(),
-                )));
+                if ret_ty != ULCType::Unit {
+                    sig.returns.push(AbiParam::new(convert_type(
+                        ret_ty,
+                        self.module.target_config(),
+                        false,
+                    )));
+                }
 
                 let callee = self
                     .module
                     .declare_function(&function, Linkage::Export, &sig)?;
                 let local_callee = self
                     .module
-                    .declare_func_in_func(callee, &mut self.builder.func);
+                    .declare_func_in_func(callee, self.builder.func);
 
                 let mut arg_values = Vec::new();
                 for arg in args {
@@ -223,7 +246,12 @@ impl<'a> FunctionTranslator<'a> {
                 }
 
                 let call = self.builder.ins().call(local_callee, &arg_values);
-                self.builder.inst_results(call)[0]
+                let inst_res = self.builder.inst_results(call);
+                if !inst_res.is_empty() {
+                    inst_res[0]
+                } else {
+                    self.builder.ins().iconst(types::I8, 0)
+                }
             }
             MiddleAstExpression::Ident(name) => {
                 if self.const_variables.contains_key(&name) {
@@ -237,7 +265,7 @@ impl<'a> FunctionTranslator<'a> {
                         anyhow::anyhow!("Somehow the stack slot and const does not exist.")
                     })?;
                     self.builder.ins().stack_load(
-                        convert_type(stack_slot.1, self.module.target_config()),
+                        convert_type(stack_slot.1, self.module.target_config(), false),
                         stack_slot.0,
                         0,
                     )
@@ -258,7 +286,7 @@ impl<'a> FunctionTranslator<'a> {
                 if let Some(return_type) = ret_ty {
                     self.builder.append_block_param(
                         merge_block,
-                        convert_type(return_type, self.module.target_config()),
+                        convert_type(return_type, self.module.target_config(), false),
                     );
                     self.builder.ins().brz(condition_value, else_block, &[]);
 

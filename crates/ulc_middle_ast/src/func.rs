@@ -41,12 +41,6 @@ impl MiddleAstFunction {
             params,
             body,
         } = fun;
-        if known_funcs.contains_key(&ident.node) {
-            return Err(SyntaxError::AlreadyDeclaredFunc(
-                known_funcs.get(&ident.node).unwrap().ident.clone(),
-                ident,
-            ));
-        }
         let mut vars: HashMap<String, VarData> = HashMap::new();
         let mut a = Vec::new();
         let mut cur_var = 0;

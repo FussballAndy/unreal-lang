@@ -11,6 +11,7 @@ impl Parser<'_> {
     pub fn parse_global_statement(&mut self) -> ParseResult<Statement> {
         match self.peek() {
             TokenKind::Function => self.parse_function_def(),
+            TokenKind::EndOfFile => Err(SyntaxError::End),
 
             _ => {
                 let token = self.next_token()?;

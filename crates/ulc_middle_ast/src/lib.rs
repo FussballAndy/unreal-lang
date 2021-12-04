@@ -43,10 +43,24 @@ impl MiddleAstRoot {
         stmts: Vec<Spanned<Statement>>,
     ) -> Result<(), MiddleAstFunctionError> {
         let mut names = HashMap::new();
+        names.insert(
+            "puts".to_owned(),
+            FuncData {
+                ident: Spanned::new((0..0).into(), "puts".to_owned()),
+                ret_ty: ULCType::Unit,
+                param_tys: vec![ULCType::String],
+            },
+        );
         let mut funcs = Vec::new();
         for st in stmts {
             if let Statement::FunctionDefinition(func) = st.node {
                 let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
+                if names.contains_key(&idt.node) {
+                    return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredFunc(
+                        names.get(&idt.node).unwrap().ident.clone(),
+                        idt,
+                    )));
+                }
                 names.insert(
                     idt.node.clone(),
                     FuncData {
@@ -55,6 +69,7 @@ impl MiddleAstRoot {
                         param_tys: func.params.iter().map(|a| a.1).collect(),
                     },
                 );
+
                 funcs.push(Spanned {
                     node: func,
                     span: st.span,

@@ -11,12 +11,14 @@ use cranelift_module::Linkage;
 use cranelift_module::Module;
 use cranelift_object::ObjectBuilder;
 use cranelift_object::ObjectModule;
+use target_lexicon::BinaryFormat;
 use target_lexicon::Triple;
 use ulc_middle_ast::MiddleAstFunction;
 use ulc_middle_ast::MiddleAstRoot;
 
 mod translator;
 mod utils;
+use ulc_types::ULCType;
 pub(crate) use utils::convert_type;
 
 pub struct CraneliftCodegonBackend {
@@ -31,11 +33,23 @@ impl CraneliftCodegonBackend {
     pub fn new(name: &str) -> Self {
         let mut flag_builder = settings::builder();
         flag_builder.enable("is_pic").unwrap();
-        let isa_builder = isa::lookup(Triple::host()).unwrap();
+        flag_builder.set("enable_verifier", "true").unwrap();
+
+        let target_triple = Triple::host();
+        let tls_model = match target_triple.binary_format {
+            BinaryFormat::Elf => "elf_gd",
+            BinaryFormat::Macho => "macho",
+            BinaryFormat::Coff => "coff",
+            _ => "none",
+        };
+
+        flag_builder.set("tls_model", tls_model).unwrap();
+
+        let isa_builder = cranelift_native::builder_with_options(true).unwrap();
         let isa = isa_builder.finish(settings::Flags::new(flag_builder));
         let builder = ObjectBuilder::new(
             isa,
-            name.to_owned(),
+            name[..(name.len() - 3)].to_owned() + ".o",
             cranelift_module::default_libcall_names(),
         )
         .unwrap();
@@ -72,12 +86,16 @@ impl CraneliftCodegonBackend {
             sig.params.push(AbiParam::new(convert_type(
                 param.1,
                 self.module.target_config(),
+                false,
             )));
         }
-        sig.returns.push(AbiParam::new(convert_type(
-            func.return_type,
-            self.module.target_config(),
-        )));
+        if func.return_type != ULCType::Unit {
+            sig.returns.push(AbiParam::new(convert_type(
+                func.return_type,
+                self.module.target_config(),
+                false,
+            )));
+        }
 
         sig
     }

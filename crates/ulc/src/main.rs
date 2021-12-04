@@ -1,10 +1,9 @@
 use chrono::Local;
 use clap::{App, Arg, SubCommand};
-use env_logger::Builder;
 use log::LevelFilter;
-use std::io::Write;
 
 mod cmd;
+mod doctor;
 
 fn main() {
     init_logger();
@@ -19,7 +18,7 @@ fn main() {
     };
 
     if let Err(e) = res {
-        log::error!("Error: {}", e);
+        log::error!("{}", e);
 
         for c in e.chain().skip(1) {
             log::error!("\t Caused by: {}", c)
@@ -70,20 +69,18 @@ fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
 }
 
 fn init_logger() {
-    let mut builder = Builder::new();
-
-    builder.format(|formatter, record| {
-        writeln!(
-            formatter,
-            "[{}] {} {}: {}",
-            Local::now().format("%H:%M:%S"),
-            record.level(),
-            record.target(),
-            record.args()
-        )
-    });
-
-    builder.filter(None, LevelFilter::Info);
-
-    builder.init();
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{}] {}: {}",
+                Local::now().format("%H:%M:%S"),
+                record.level(),
+                message
+            ))
+        })
+        .level(LevelFilter::Info)
+        .level_for("cranelift_codegen", LevelFilter::Off)
+        .chain(std::io::stdout())
+        .apply()
+        .unwrap();
 }
