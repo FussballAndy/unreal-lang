@@ -1,5 +1,3 @@
-#![recursion_limit = "32"]
-
 use ulc_ast::{Expression, Function, Lit, Statement};
 use ulc_parser::{chumsky_parser, ChumskyParserRes};
 use ulc_types::{Spanned, ULCType};
