@@ -1,6 +1,6 @@
-use ulc_ast::{Expression, Function, Lit, Statement};
+use ulc_ast::{BinaryOperation, Expression, Function, Lit, Statement};
 use ulc_parser::Parser;
-use ulc_types::{token_kind::TokenKind, Spanned, ULCType};
+use ulc_types::{Spanned, ULCType};
 
 #[test]
 fn global_function() {
@@ -16,14 +16,14 @@ fn global_function() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: Spanned::new((18..22).into(), "main".to_owned()),
+                    ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![
                         Spanned {
                             span: (42..52).into(),
                             node: Statement::Let {
-                                name: Spanned::new((42..43).into(), "a".to_owned()),
+                                name: Spanned::new(42..43, "a".to_owned()),
                                 let_type: ULCType::Int,
                                 expr: Box::new(Spanned {
                                     span: (51..52).into(),
@@ -36,7 +36,7 @@ fn global_function() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (66..76).into(),
                                 node: Expression::FunctionCall {
-                                    function: Spanned::new((66..73).into(), "println".to_owned()),
+                                    function: Spanned::new(66..73, "println".to_owned()),
                                     args: vec![Spanned {
                                         span: (74..75).into(),
                                         node: Expression::Ident("a".to_owned()),
@@ -68,30 +68,29 @@ fn if_expr() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: Spanned::new((18..22).into(), "main".to_owned()),
+                    ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![Spanned {
                         span: (44..80).into(),
                         node: Statement::Const {
-                            name: Spanned::new((44..45).into(), "a".to_owned()),
+                            name: Spanned::new(44..45, "a".to_owned()),
                             const_type: ULCType::Int,
                             expr: Box::new(Spanned {
                                 span: (53..80).into(),
                                 node: Expression::IfExpr {
                                     condition: Box::new(Spanned {
                                         span: (56..62).into(),
-                                        node: Expression::BinaryOperation {
-                                            op: TokenKind::Equals,
-                                            lhs: Box::new(Spanned {
+                                        node: Expression::BinaryOperation(BinaryOperation::Eq(
+                                            Box::new(Spanned {
                                                 span: (56..57).into(),
                                                 node: Expression::Literal(Lit::Int(5)),
                                             }),
-                                            rhs: Box::new(Spanned {
+                                            Box::new(Spanned {
                                                 span: (61..62).into(),
                                                 node: Expression::Literal(Lit::Int(5)),
                                             }),
-                                        },
+                                        )),
                                     }),
                                     true_case: vec![Spanned {
                                         span: (68..69).into(),
@@ -143,7 +142,7 @@ fn bigger_if_expr() {
             assert_eq!(
                 stmt.node,
                 Statement::FunctionDefinition(Function {
-                    ident: Spanned::new((18..22).into(), "main".to_owned()),
+                    ident: Spanned::new(18..22, "main".to_owned()),
                     params: vec![
                         ("argv".to_owned(), ULCType::Int),
                         ("argc".to_owned(), ULCType::Int)
@@ -164,10 +163,7 @@ fn bigger_if_expr() {
                                         node: Statement::UnusedExpression(Box::new(Spanned {
                                             span: (89..102).into(),
                                             node: Expression::FunctionCall {
-                                                function: Spanned::new(
-                                                    (89..93).into(),
-                                                    "puts".to_owned()
-                                                ),
+                                                function: Spanned::new(89..93, "puts".to_owned()),
                                                 args: vec![Spanned {
                                                     span: (94..101).into(),
                                                     node: Expression::Literal(Lit::String(
@@ -182,10 +178,7 @@ fn bigger_if_expr() {
                                         node: Statement::UnusedExpression(Box::new(Spanned {
                                             span: (137..150).into(),
                                             node: Expression::FunctionCall {
-                                                function: Spanned::new(
-                                                    (137..141).into(),
-                                                    "puts".to_owned()
-                                                ),
+                                                function: Spanned::new(137..141, "puts".to_owned()),
                                                 args: vec![Spanned {
                                                     span: (142..149).into(),
                                                     node: Expression::Literal(Lit::String(
@@ -203,7 +196,7 @@ fn bigger_if_expr() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (181..201).into(),
                                 node: Expression::FunctionCall {
-                                    function: Spanned::new((181..185).into(), "puts".to_owned()),
+                                    function: Spanned::new(181..185, "puts".to_owned()),
                                     args: vec![Spanned {
                                         span: (186..200).into(),
                                         node: Expression::Literal(Lit::String(

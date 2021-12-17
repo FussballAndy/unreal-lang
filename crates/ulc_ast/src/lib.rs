@@ -1,8 +1,11 @@
-use ulc_types::{token_kind::TokenKind, Spanned};
+use ulc_types::Spanned;
 
 use ulc_types::ULCType;
 
 mod impls;
+mod oper;
+
+pub use oper::{BinaryOperation, UnaryOperation};
 
 pub type BoxedExpression = Box<Spanned<Expression>>;
 pub type Expressions = Vec<Spanned<Expression>>;
@@ -17,15 +20,8 @@ pub enum Expression {
         function: Spanned<String>,
         args: Expressions,
     },
-    BinaryOperation {
-        op: TokenKind,
-        lhs: BoxedExpression,
-        rhs: BoxedExpression,
-    },
-    UnaryOperation {
-        op: TokenKind,
-        expr: BoxedExpression,
-    },
+    BinaryOperation(BinaryOperation),
+    UnaryOperation(UnaryOperation),
     IfExpr {
         condition: BoxedExpression,
         true_case: Vec<Spanned<Statement>>,

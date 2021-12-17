@@ -46,7 +46,7 @@ impl MiddleAstRoot {
         names.insert(
             "puts".to_owned(),
             FuncData {
-                ident: Spanned::new((0..0).into(), "puts".to_owned()),
+                ident: Spanned::new(0..0, "puts".to_owned()),
                 ret_ty: ULCType::Unit,
                 param_tys: vec![ULCType::String],
             },

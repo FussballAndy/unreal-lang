@@ -1,4 +1,4 @@
-use ulc_ast::{BoxedExpression, Expression, Lit, Statement};
+use ulc_ast::{BinaryOperation, BoxedExpression, Expression, Lit, Statement, UnaryOperation};
 use ulc_types::{
     errors::{ParseResult, SyntaxError},
     token_kind::TokenKind,
@@ -121,10 +121,11 @@ impl Parser<'_> {
                 // parsed our operand `lhs`
                 left_hand_side = Spanned {
                     span: (left_hand_side.span.start..op_token.span.end).into(),
-                    node: Expression::UnaryOperation {
-                        op,
-                        expr: Box::new(left_hand_side),
-                    },
+                    node: Expression::UnaryOperation(match op {
+                        TokenKind::Not => UnaryOperation::Not(Box::new(left_hand_side)),
+                        TokenKind::Minus => UnaryOperation::Neg(Box::new(left_hand_side)),
+                        _ => unreachable!(),
+                    }),
                 };
                 // parsed an operator --> go round the loop again
                 continue;
@@ -142,13 +143,27 @@ impl Parser<'_> {
                 let right_hand_side = crate::validate_used_if_expression(
                     self.parse_expression(right_binding_power)?,
                 )?;
+                let bin_op = match op {
+                    TokenKind::Add => BinaryOperation::Add,
+                    TokenKind::Minus => BinaryOperation::Sub,
+                    TokenKind::Multiply => BinaryOperation::Mul,
+                    TokenKind::Divide => BinaryOperation::Div,
+                    TokenKind::NotEquals => BinaryOperation::NEq,
+                    TokenKind::Equals => BinaryOperation::Eq,
+                    TokenKind::GreaterThan => BinaryOperation::GT,
+                    TokenKind::SmallerThan => BinaryOperation::ST,
+                    TokenKind::GreaterEquals => BinaryOperation::GTOE,
+                    TokenKind::SmallerEquals => BinaryOperation::STOE,
+                    TokenKind::And => BinaryOperation::And,
+                    TokenKind::Or => BinaryOperation::Or,
+                    _ => unreachable!(),
+                };
                 left_hand_side = Spanned {
                     span: (left_hand_side.span.start..right_hand_side.span.end).into(),
-                    node: Expression::BinaryOperation {
-                        op,
-                        lhs: Box::new(left_hand_side),
-                        rhs: Box::new(right_hand_side),
-                    },
+                    node: Expression::BinaryOperation(bin_op(
+                        Box::new(left_hand_side),
+                        Box::new(right_hand_side),
+                    )),
                 };
                 // parsed an operator --> go round the loop again
                 continue;

@@ -9,8 +9,8 @@ use cranelift_module::{DataContext, DataId, FuncId, Linkage, Module};
 use cranelift_object::ObjectModule;
 use ulc_ast::Lit;
 use ulc_middle_ast::{
-    BinaryOperator, MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstFunction,
-    MiddleAstStatement, MiddleAstUnaryOperation,
+    MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstFunction, MiddleAstStatement,
+    MiddleAstUnaryOperation,
 };
 use ulc_types::ULCType;
 
@@ -175,39 +175,70 @@ impl<'a> FunctionTranslator<'a> {
                 }
             },
             MiddleAstExpression::BinaryOperation(op) => match op {
-                MiddleAstBinaryOperation::Calc { op, lhs, rhs } => {
+                MiddleAstBinaryOperation::Add(lhs, rhs) => {
                     let lhs = self.translate_expr(*lhs)?;
                     let rhs = self.translate_expr(*rhs)?;
-                    match op {
-                        BinaryOperator::Add => self.builder.ins().iadd(lhs, rhs),
-                        BinaryOperator::Minus => self.builder.ins().isub(lhs, rhs),
-                        BinaryOperator::Multiply => self.builder.ins().imul(lhs, rhs),
-                        BinaryOperator::Divide => self.builder.ins().udiv(lhs, rhs),
-                        _ => unreachable!(),
-                    }
+                    self.builder.ins().iadd(lhs, rhs)
                 }
-                MiddleAstBinaryOperation::Comb { op, lhs, rhs } => {
+                MiddleAstBinaryOperation::Sub(lhs, rhs) => {
                     let lhs = self.translate_expr(*lhs)?;
                     let rhs = self.translate_expr(*rhs)?;
-                    match op {
-                        BinaryOperator::And => self.builder.ins().band(lhs, rhs),
-                        BinaryOperator::Or => self.builder.ins().bor(lhs, rhs),
-                        _ => unreachable!(),
-                    }
+                    self.builder.ins().isub(lhs, rhs)
                 }
-                MiddleAstBinaryOperation::Comp { op, lhs, rhs } => {
+                MiddleAstBinaryOperation::Mul(lhs, rhs) => {
                     let lhs = self.translate_expr(*lhs)?;
                     let rhs = self.translate_expr(*rhs)?;
-                    let cond = match op {
-                        BinaryOperator::Equals => IntCC::Equal,
-                        BinaryOperator::NotEquals => IntCC::NotEqual,
-                        BinaryOperator::GreaterEquals => IntCC::SignedGreaterThanOrEqual,
-                        BinaryOperator::SmallerEquals => IntCC::SignedLessThanOrEqual,
-                        BinaryOperator::GreaterThan => IntCC::SignedGreaterThan,
-                        BinaryOperator::SmallerThan => IntCC::SignedLessThan,
-                        _ => unreachable!(),
-                    };
-                    self.builder.ins().icmp(cond, lhs, rhs)
+                    self.builder.ins().imul(lhs, rhs)
+                }
+                MiddleAstBinaryOperation::Div(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().udiv(lhs, rhs)
+                }
+                MiddleAstBinaryOperation::NEq(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().icmp(IntCC::NotEqual, lhs, rhs)
+                }
+                MiddleAstBinaryOperation::Eq(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().icmp(IntCC::Equal, lhs, rhs)
+                }
+                MiddleAstBinaryOperation::GT(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().icmp(IntCC::SignedGreaterThan, lhs, rhs)
+                }
+                MiddleAstBinaryOperation::ST(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().icmp(IntCC::SignedLessThan, lhs, rhs)
+                }
+                MiddleAstBinaryOperation::GTOE(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder
+                        .ins()
+                        .icmp(IntCC::SignedGreaterThanOrEqual, lhs, rhs)
+                }
+                MiddleAstBinaryOperation::STOE(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder
+                        .ins()
+                        .icmp(IntCC::SignedLessThanOrEqual, lhs, rhs)
+                }
+
+                MiddleAstBinaryOperation::And(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().band(lhs, rhs)
+                }
+                MiddleAstBinaryOperation::Or(lhs, rhs) => {
+                    let lhs = self.translate_expr(*lhs)?;
+                    let rhs = self.translate_expr(*rhs)?;
+                    self.builder.ins().bor(lhs, rhs)
                 }
             },
             MiddleAstExpression::FunctionCall {

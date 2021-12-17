@@ -2,6 +2,7 @@ use std::process::{Command, Stdio};
 
 use anyhow::Context;
 
+// GCC might also work for some targets. However it does not work for x64 out of the box.
 pub(crate) fn run_doctor() -> anyhow::Result<()> {
     let clang_path = option_env!("CLANG_PATH");
     let res_status = if let Some(clang) = clang_path {

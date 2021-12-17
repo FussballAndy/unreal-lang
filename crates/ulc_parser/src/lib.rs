@@ -9,8 +9,11 @@ use ulc_types::{
     Spanned, ULCType,
 };
 
+mod chumsky_parser;
 mod expression;
 mod statement;
+
+pub use chumsky_parser::{chumsky_parser, ChumskyParserRes};
 
 pub struct Parser<'input> {
     input: &'input str,

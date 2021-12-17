@@ -26,21 +26,20 @@ pub enum MiddleAstExpression {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum MiddleAstBinaryOperation {
-    Calc {
-        op: BinaryOperator,
-        lhs: BoxedExpression,
-        rhs: BoxedExpression,
-    },
-    Comb {
-        op: BinaryOperator,
-        lhs: BoxedExpression,
-        rhs: BoxedExpression,
-    },
-    Comp {
-        op: BinaryOperator,
-        lhs: BoxedExpression,
-        rhs: BoxedExpression,
-    },
+    Add(BoxedExpression, BoxedExpression),
+    Sub(BoxedExpression, BoxedExpression),
+    Mul(BoxedExpression, BoxedExpression),
+    Div(BoxedExpression, BoxedExpression),
+
+    NEq(BoxedExpression, BoxedExpression),
+    Eq(BoxedExpression, BoxedExpression),
+    GT(BoxedExpression, BoxedExpression),
+    ST(BoxedExpression, BoxedExpression),
+    GTOE(BoxedExpression, BoxedExpression),
+    STOE(BoxedExpression, BoxedExpression),
+
+    And(BoxedExpression, BoxedExpression),
+    Or(BoxedExpression, BoxedExpression),
 }
 
 #[derive(Clone, Debug, PartialEq)]

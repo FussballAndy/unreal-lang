@@ -15,8 +15,11 @@ pub struct Spanned<T> {
 }
 
 impl<T> Spanned<T> {
-    pub fn new(span: TokenSpan, node: T) -> Self {
-        Self { span, node }
+    pub fn new<S: Into<TokenSpan>>(span: S, node: T) -> Self {
+        Self {
+            span: span.into(),
+            node,
+        }
     }
 }
 

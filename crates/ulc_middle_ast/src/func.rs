@@ -1,17 +1,13 @@
 use std::collections::HashMap;
 
-use ulc_ast::{Expression, Function, Statement};
+use ulc_ast::{BinaryOperation, Expression, Function, Statement, UnaryOperation};
 use ulc_types::{
     errors::{SyntaxError, SyntaxResult},
-    token_kind::TokenKind,
     Spanned, ULCType,
 };
 
 use crate::{
-    expr::{
-        BinaryOperator, MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation,
-        UnaryOperator,
-    },
+    expr::{MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation},
     stmt::MiddleAstStatement,
     FuncData,
 };
@@ -291,10 +287,8 @@ impl<'a> MiddleAstTranslator<'a> {
                     Err(SyntaxError::InvalidIdent(function))
                 }
             }
-            Expression::BinaryOperation { op, lhs, rhs } => {
-                self.translate_binary_operation(op, *lhs, *rhs)
-            }
-            Expression::UnaryOperation { op, expr } => self.translate_unary_operation(op, *expr),
+            Expression::BinaryOperation(oper) => self.translate_binary_operation(oper),
+            Expression::UnaryOperation(oper) => self.translate_unary_operation(oper),
             Expression::IfExpr {
                 condition,
                 true_case,
@@ -371,173 +365,150 @@ impl<'a> MiddleAstTranslator<'a> {
 
     fn translate_unary_operation(
         &mut self,
-        op: TokenKind,
-        expr: Spanned<Expression>,
+        oper: UnaryOperation,
     ) -> SyntaxResult<(MiddleAstExpression, ULCType)> {
-        let oper: UnaryOperator = op.try_into()?;
-        let ex_span = expr.span;
-        let (middle_expr, ty) = self.translate_expr(expr)?;
-        if oper == UnaryOperator::Minus {
-            if ty != ULCType::Int {
-                return Err(SyntaxError::NotMatchingType {
-                    expected: vec![ULCType::Int],
-                    got: ty,
-                    span: ex_span,
-                });
+        match oper {
+            UnaryOperation::Neg(expr) => {
+                let ex_span = expr.span;
+                let (middle_expr, ty) = self.translate_expr(*expr)?;
+                if ty != ULCType::Int {
+                    return Err(SyntaxError::NotMatchingType {
+                        expected: vec![ULCType::Int],
+                        got: ty,
+                        span: ex_span,
+                    });
+                }
+                Ok((
+                    MiddleAstExpression::UnaryOperation(MiddleAstUnaryOperation::Minus(Box::new(
+                        middle_expr,
+                    ))),
+                    ULCType::Int,
+                ))
             }
-            Ok((
-                MiddleAstExpression::UnaryOperation(MiddleAstUnaryOperation::Minus(Box::new(
-                    middle_expr,
-                ))),
-                ULCType::Int,
-            ))
-        } else {
-            if ty != ULCType::Bool {
-                return Err(SyntaxError::NotMatchingType {
-                    expected: vec![ULCType::Bool],
-                    got: ty,
-                    span: ex_span,
-                });
+            UnaryOperation::Not(expr) => {
+                let ex_span = expr.span;
+                let (middle_expr, ty) = self.translate_expr(*expr)?;
+                if ty != ULCType::Bool {
+                    return Err(SyntaxError::NotMatchingType {
+                        expected: vec![ULCType::Bool],
+                        got: ty,
+                        span: ex_span,
+                    });
+                }
+                Ok((
+                    MiddleAstExpression::UnaryOperation(MiddleAstUnaryOperation::Invert(Box::new(
+                        middle_expr,
+                    ))),
+                    ULCType::Bool,
+                ))
             }
-            Ok((
-                MiddleAstExpression::UnaryOperation(MiddleAstUnaryOperation::Invert(Box::new(
-                    middle_expr,
-                ))),
-                ULCType::Bool,
-            ))
         }
     }
 
     fn translate_binary_operation(
         &mut self,
-        op: TokenKind,
-        lhs: Spanned<Expression>,
-        rhs: Spanned<Expression>,
+        oper: BinaryOperation,
     ) -> SyntaxResult<(MiddleAstExpression, ULCType)> {
-        let oper: BinaryOperator = op.try_into()?;
+        let (oper_fun, (lhs, rhs), expect, returns) = match oper {
+            BinaryOperation::Add(lhs, rhs) => (
+                MiddleAstBinaryOperation::Add as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Int,
+            ),
+            BinaryOperation::Sub(lhs, rhs) => (
+                MiddleAstBinaryOperation::Sub as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Int,
+            ),
+            BinaryOperation::Mul(lhs, rhs) => (
+                MiddleAstBinaryOperation::Mul as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Int,
+            ),
+            BinaryOperation::Div(lhs, rhs) => (
+                MiddleAstBinaryOperation::Div as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Int,
+            ),
+
+            BinaryOperation::NEq(lhs, rhs) => (
+                MiddleAstBinaryOperation::NEq as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+            BinaryOperation::Eq(lhs, rhs) => (
+                MiddleAstBinaryOperation::Eq as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+            BinaryOperation::GT(lhs, rhs) => (
+                MiddleAstBinaryOperation::GT as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+            BinaryOperation::ST(lhs, rhs) => (
+                MiddleAstBinaryOperation::ST as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+            BinaryOperation::GTOE(lhs, rhs) => (
+                MiddleAstBinaryOperation::GTOE as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+            BinaryOperation::STOE(lhs, rhs) => (
+                MiddleAstBinaryOperation::STOE as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Int,
+                ULCType::Bool,
+            ),
+
+            BinaryOperation::And(lhs, rhs) => (
+                MiddleAstBinaryOperation::And as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Bool,
+                ULCType::Bool,
+            ),
+            BinaryOperation::Or(lhs, rhs) => (
+                MiddleAstBinaryOperation::Or as fn(_, _) -> _,
+                (lhs, rhs),
+                ULCType::Bool,
+                ULCType::Bool,
+            ),
+        };
         let lhs_span = lhs.span;
         let rhs_span = rhs.span;
-        let (lhs_node, lhs_ty) = self.translate_expr(lhs)?;
-        let (rhs_node, rhs_ty) = self.translate_expr(rhs)?;
-        match oper {
-            math @ BinaryOperator::Add
-            | math @ BinaryOperator::Minus
-            | math @ BinaryOperator::Multiply
-            | math @ BinaryOperator::Divide => {
-                if lhs_ty != ULCType::Int {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Int],
-                        got: lhs_ty,
-                        span: lhs_span,
-                    });
-                }
-                if rhs_ty != ULCType::Int {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Int],
-                        got: rhs_ty,
-                        span: rhs_span,
-                    });
-                }
-                Ok((
-                    MiddleAstExpression::BinaryOperation(MiddleAstBinaryOperation::Calc {
-                        op: math,
-                        lhs: Box::new(lhs_node),
-                        rhs: Box::new(rhs_node),
-                    }),
-                    ULCType::Int,
-                ))
-            }
+        let (lhs_node, lhs_ty) = self.translate_expr(*lhs)?;
+        let (rhs_node, rhs_ty) = self.translate_expr(*rhs)?;
 
-            comp @ BinaryOperator::GreaterEquals
-            | comp @ BinaryOperator::SmallerEquals
-            | comp @ BinaryOperator::GreaterThan
-            | comp @ BinaryOperator::SmallerThan => {
-                if lhs_ty != ULCType::Int {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Int],
-                        got: lhs_ty,
-                        span: lhs_span,
-                    });
-                }
-                if rhs_ty != ULCType::Int {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Int],
-                        got: rhs_ty,
-                        span: rhs_span,
-                    });
-                }
-                Ok((
-                    MiddleAstExpression::BinaryOperation(MiddleAstBinaryOperation::Comp {
-                        op: comp,
-                        lhs: Box::new(lhs_node),
-                        rhs: Box::new(rhs_node),
-                    }),
-                    ULCType::Bool,
-                ))
-            }
-
-            comb @ BinaryOperator::And | comb @ BinaryOperator::Or => {
-                if lhs_ty != ULCType::Bool {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Bool],
-                        got: lhs_ty,
-                        span: lhs_span,
-                    });
-                }
-                if rhs_ty != ULCType::Bool {
-                    return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Bool],
-                        got: rhs_ty,
-                        span: rhs_span,
-                    });
-                }
-                Ok((
-                    MiddleAstExpression::BinaryOperation(MiddleAstBinaryOperation::Comb {
-                        op: comb,
-                        lhs: Box::new(lhs_node),
-                        rhs: Box::new(rhs_node),
-                    }),
-                    ULCType::Bool,
-                ))
-            }
-
-            both @ BinaryOperator::Equals | both @ BinaryOperator::NotEquals => {
-                match lhs_ty {
-                    ULCType::Int => {
-                        if rhs_ty != ULCType::Int {
-                            return Err(SyntaxError::NotMatchingType {
-                                expected: vec![ULCType::Int],
-                                got: rhs_ty,
-                                span: rhs_span,
-                            });
-                        }
-                    }
-                    ULCType::Bool => {
-                        if rhs_ty != ULCType::Bool {
-                            return Err(SyntaxError::NotMatchingType {
-                                expected: vec![ULCType::Bool],
-                                got: rhs_ty,
-                                span: rhs_span,
-                            });
-                        }
-                    }
-                    a => {
-                        return Err(SyntaxError::NotMatchingType {
-                            expected: vec![ULCType::Int, ULCType::Bool],
-                            got: a,
-                            span: lhs_span,
-                        });
-                    }
-                }
-                Ok((
-                    MiddleAstExpression::BinaryOperation(MiddleAstBinaryOperation::Comp {
-                        op: both,
-                        lhs: Box::new(lhs_node),
-                        rhs: Box::new(rhs_node),
-                    }),
-                    ULCType::Bool,
-                ))
-            }
+        if lhs_ty != expect {
+            return Err(SyntaxError::NotMatchingType {
+                expected: vec![expect],
+                got: lhs_ty,
+                span: lhs_span,
+            });
         }
+
+        if rhs_ty != expect {
+            return Err(SyntaxError::NotMatchingType {
+                expected: vec![expect],
+                got: rhs_ty,
+                span: rhs_span,
+            });
+        }
+
+        Ok((
+            MiddleAstExpression::BinaryOperation(oper_fun(Box::new(lhs_node), Box::new(rhs_node))),
+            returns,
+        ))
     }
 }

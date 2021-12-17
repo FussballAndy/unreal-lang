@@ -24,8 +24,8 @@ impl fmt::Display for Expression {
                 }
             ),
             Self::FunctionCall { function, args } => write!(f, "({} {})", function, join(args)),
-            Self::BinaryOperation { op, lhs, rhs } => write!(f, "({} {} {})", op, lhs, rhs),
-            Self::UnaryOperation { op, expr } => write!(f, "({} {})", op, expr),
+            Self::BinaryOperation(oper) => write!(f, "({})", oper),
+            Self::UnaryOperation(oper) => write!(f, "({})", oper),
         }
     }
 }
