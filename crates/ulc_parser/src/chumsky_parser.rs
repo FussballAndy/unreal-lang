@@ -11,7 +11,7 @@ type Span = std::ops::Range<usize>;
 
 pub fn parser_expr(
     stmt_list: Recursive<Token, Vec<Spanned<Statement>>, Simple<Token>>,
-) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + '_ {
+) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + Clone + '_ {
     recursive(|expr| {
         let expr_ident = spanned_ident()
             .then(
@@ -76,7 +76,7 @@ pub fn parser_expr(
 }
 
 #[inline(always)]
-fn parser_type() -> impl Parser<Token, ULCType, Error = Simple<Token>> {
+fn parser_type() -> impl Parser<Token, ULCType, Error = Simple<Token>> + Clone {
     just(Token::Type("Int"))
         .to(ULCType::Int)
         .or(just(Token::Type("Bool")).to(ULCType::Bool))
@@ -86,12 +86,14 @@ fn parser_type() -> impl Parser<Token, ULCType, Error = Simple<Token>> {
 fn parser_stmt(
     stmt_list: Recursive<Token, Vec<Spanned<Statement>>, Simple<Token>>,
 ) -> impl Parser<Token, Spanned<Statement>, Error = Simple<Token>> + '_ {
+    let parser_exp = parser_expr(stmt_list);
+
     let stmt_let = just(Token::Let)
         .ignore_then(spanned_ident())
         .then_ignore(just(Token::Ctrl(':')))
         .then(parser_type())
         .then_ignore(just(Token::Operator("=".to_owned())))
-        .then(parser_expr(stmt_list.clone()))
+        .then(parser_exp.clone())
         .map_with_span(|((name, let_type), val), span| Spanned {
             node: Statement::Let {
                 name,
@@ -106,7 +108,7 @@ fn parser_stmt(
         .then_ignore(just(Token::Ctrl(':')))
         .then(parser_type())
         .then_ignore(just(Token::Operator("=".to_owned())))
-        .then(parser_expr(stmt_list.clone()))
+        .then(parser_exp.clone())
         .map_with_span(|((name, const_type), val), span| Spanned {
             node: Statement::Const {
                 name,
@@ -118,7 +120,7 @@ fn parser_stmt(
 
     let stmt_ass = spanned_ident()
         .then_ignore(just(Token::Operator("=".to_owned())))
-        .then(parser_expr(stmt_list.clone()))
+        .then(parser_exp.clone())
         .map_with_span(|(name, val), span| Spanned {
             node: Statement::Assignment {
                 name,
@@ -130,7 +132,7 @@ fn parser_stmt(
     stmt_let
         .or(stmt_const)
         .or(stmt_ass)
-        .or(parser_expr(stmt_list).map_with_span(|expr, span| Spanned {
+        .or(parser_exp.map_with_span(|expr, span| Spanned {
             node: Statement::UnusedExpression(Box::new(expr)),
             span: span.into(),
         }))
@@ -161,9 +163,7 @@ pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simpl
                 .or_not()
                 .map(|ty| ty.unwrap_or(ULCType::Unit)),
         )
-        .then_ignore(just(Token::Do))
-        .then(parser_stmt_list())
-        .then_ignore(just(Token::End))
+        .then(parser_stmt_list().delimited_by(Token::Do, Token::End))
         .map_with_span(|(((name_idt, params), return_type), stmts), span| Spanned {
             node: Function {
                 ident: name_idt,
