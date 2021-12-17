@@ -217,12 +217,12 @@ pub fn chumsky_parser(src: &str) -> ChumskyParserRes {
         let len = src.chars().count();
         println!("Parser...");
         let (res, err) =
-            &parser_func().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
+            parser_func().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
         println!("Done");
         ChumskyParserRes {
-            parsed_funcs: res.clone(),
+            parsed_funcs: res,
             lexer_errors: Vec::new(),
-            parser_errors: err.clone(),
+            parser_errors: err,
         }
     } else {
         ChumskyParserRes {
