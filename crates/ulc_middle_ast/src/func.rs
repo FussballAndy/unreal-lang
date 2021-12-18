@@ -203,7 +203,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 let (middle_expr, _ty) = self.translate_expr(*expr)?;
                 Ok(MiddleAstStatement::UnusedExpression(Box::new(middle_expr)))
             }
-            Statement::FunctionDefinition(_) => unreachable!(),
+            _ => unreachable!(),
         }
     }
 

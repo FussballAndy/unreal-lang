@@ -65,5 +65,6 @@ pub enum Statement {
     ReturnStatement {
         expression: BoxedExpression,
     },
+    StmtChain(Box<Spanned<Statement>>, Option<Box<Spanned<Statement>>>),
     UnusedExpression(BoxedExpression),
 }

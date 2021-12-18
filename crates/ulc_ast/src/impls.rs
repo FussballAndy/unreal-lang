@@ -57,6 +57,15 @@ impl fmt::Display for Statement {
             Self::Assignment { name, expr } => write!(f, "({} = {})", name, expr),
             Self::UnusedExpression(e) => e.fmt(f),
             Self::ReturnStatement { expression } => write!(f, "return ({})", expression),
+            Self::StmtChain(le, ri) => write!(
+                f,
+                "{};\n{}",
+                le,
+                match ri {
+                    Some(rig) => format!("{}", rig),
+                    None => format!(""),
+                }
+            ),
         }
     }
 }
