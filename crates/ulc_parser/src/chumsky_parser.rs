@@ -58,7 +58,7 @@ fn parser_raw_expr(
                     true_case,
                     false_case,
                 },
-                span: span.clone().into(),
+                span: span.into(),
             });
 
         expr_if.or(expr_lit).or(expr_ident)
@@ -90,7 +90,7 @@ fn parser_expr(
             .or(just(Token::Operator("/".to_owned())).to(BinaryOperation::Div as BinOpFun));
         let product = raw_expr
             .clone()
-            .then(prd_op.then(raw_expr.clone()).repeated())
+            .then(prd_op.then(raw_expr).repeated())
             .foldl(|lhs, (op, rhs)| {
                 let span = (lhs.span.start..rhs.span.end).into();
                 Spanned {
@@ -117,6 +117,7 @@ fn parser_expr(
                 }
             });
 
+        // compare
         let cmp_ops = just(Token::Operator("==".to_owned()))
             .to(BinaryOperation::Eq as BinOpFun)
             .or(just(Token::Operator("!=".to_owned())).to(BinaryOperation::NEq as BinOpFun))
@@ -124,8 +125,7 @@ fn parser_expr(
             .or(just(Token::Operator("<".to_owned())).to(BinaryOperation::ST as BinOpFun))
             .or(just(Token::Operator(">=".to_owned())).to(BinaryOperation::GTOE as BinOpFun))
             .or(just(Token::Operator("<=".to_owned())).to(BinaryOperation::STOE as BinOpFun));
-        let compare = sum
-            .clone()
+        sum.clone()
             .then(cmp_ops.then(sum).repeated())
             .foldl(|lhs, (op, rhs)| {
                 let span = (lhs.span.start..rhs.span.end).into();
@@ -133,9 +133,7 @@ fn parser_expr(
                     node: Expression::BinaryOperation(op(Box::new(lhs), Box::new(rhs))),
                     span,
                 }
-            });
-
-        compare
+            })
     })
 }
 
@@ -212,20 +210,18 @@ fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Sim
                     result.push(left);
                     let last = right.pop();
                     result.append(&mut right.into_iter().flatten().collect());
-                    match last {
-                        Some(Some(st)) => {
-                            let stm = match st.node {
-                                Statement::UnusedExpression(expr) => {
-                                    Statement::ReturnStatement { expression: expr }
-                                }
-                                o => o,
-                            };
-                            result.push(Spanned {
-                                node: stm,
-                                span: st.span,
-                            })
-                        }
-                        _ => {}
+
+                    if let Some(Some(st)) = last {
+                        let stm = match st.node {
+                            Statement::UnusedExpression(expr) => {
+                                Statement::ReturnStatement { expression: expr }
+                            }
+                            o => o,
+                        };
+                        result.push(Spanned {
+                            node: stm,
+                            span: st.span,
+                        })
                     }
                 }
                 result
@@ -234,7 +230,7 @@ fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Sim
 }
 
 pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simple<Token>> {
-    just(Token::Func)
+    let func = just(Token::Func)
         .ignore_then(spanned_ident())
         .then(
             parser_ident_and_type()
@@ -258,9 +254,9 @@ pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simpl
                 return_type,
             },
             span: span.into(),
-        })
-        .repeated()
-        .then_ignore(end())
+        });
+        
+    func.repeated().then_ignore(end())
 }
 
 #[inline(always)]

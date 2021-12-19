@@ -1,5 +1,8 @@
 use ulc_ast::{Expression, Statement};
-use ulc_types::{Spanned, errors::{ParseResult, SyntaxError}};
+use ulc_types::{
+    errors::{ParseResult, SyntaxError},
+    Spanned,
+};
 
 pub fn validate_used_if_expression(expr: Spanned<Expression>) -> ParseResult<Expression> {
     if let Expression::IfExpr {

@@ -556,7 +556,6 @@ dependencies = [
 name = "ulc_ast"
 version = "0.1.0"
 dependencies = [
- "ulc_lexer",
  "ulc_types",
 ]
 
@@ -591,14 +590,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ulc_lexer"
-version = "0.1.0"
-dependencies = [
- "logos",
- "ulc_types",
-]
-
-[[package]]
 name = "ulc_middle_ast"
 version = "0.1.0"
 dependencies = [
@@ -615,7 +606,6 @@ dependencies = [
  "anyhow",
  "chumsky",
  "ulc_ast",
- "ulc_lexer",
  "ulc_types",
 ]
 

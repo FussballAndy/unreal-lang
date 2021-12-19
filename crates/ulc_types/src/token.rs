@@ -1,30 +1,5 @@
 use std::ops::{Index, Range};
 
-use super::token_kind::TokenKind;
-
-#[derive(Clone, Copy, PartialEq)]
-pub struct Token {
-    pub kind: TokenKind,
-    pub span: TokenSpan,
-}
-
-impl Token {
-    #[inline(always)]
-    pub fn len(&self) -> usize {
-        (self.span.end - self.span.start) as usize
-    }
-
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    #[inline(always)]
-    pub fn text<'input>(&self, input: &'input str) -> &'input str {
-        &input[self.span]
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TokenSpan {
     pub start: usize,

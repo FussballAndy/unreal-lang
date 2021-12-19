@@ -11,8 +11,7 @@ pub use types::*;
 
 use ulc_codegen_cranelift::CraneliftCodegonBackend;
 use ulc_middle_ast::MiddleAstRoot;
-use ulc_parser::Parser;
-use ulc_types::errors::SyntaxError;
+use ulc_parser::chumsky_parser;
 
 struct BuildData<'input> {
     pub root: PathBuf,
@@ -73,25 +72,26 @@ fn build_input(
         std::fs::create_dir(data.root.join("target").join("objs"))?;
     }
 
-    let mut parser = Parser::new(&input);
-    let mut stmts = Vec::new();
+    let parser = chumsky_parser(&input);
 
     if build_config.verbose {
         log::info!("Starting parser.");
     }
 
-    loop {
-        match parser.parse_global_statement() {
-            Ok(stmt) => stmts.push(stmt),
-            Err(err) => {
-                if let SyntaxError::End = err {
-                    break;
-                }
-                err.display(&input, data.main_file);
-                anyhow::bail!("Aborted due to error. Read error report above.")
-            }
+    let funcs = match parser.parsed_funcs {
+        Some(funs) => funs,
+        None => {
+            parser
+                .lexer_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
+            parser
+                .parser_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
+            anyhow::bail!("Aborted due to error. Read error report above.")
         }
-    }
+    };
 
     if build_config.verbose {
         log::info!("Finished parser.");
@@ -99,7 +99,7 @@ fn build_input(
 
     let mut root = MiddleAstRoot::new();
 
-    root.append_all_funcs(stmts).map_err(|err| {
+    root.append_all_funcs(funcs).map_err(|err| {
         err.0.display(&input, data.main_file);
         anyhow::anyhow!("Aborted due to error. Read error report above.")
     })?;

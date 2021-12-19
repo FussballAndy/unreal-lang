@@ -1,18 +1,15 @@
+mod check;
 mod expr;
 mod func;
 mod stmt;
-mod check;
 
 use std::collections::HashMap;
 
 use convert_case::{Case, Casing};
-use ulc_ast::{Function, Statement};
+use ulc_ast::Function;
 use ulc_types::{errors::SyntaxError, Spanned, ULCType};
 
-pub use expr::{
-    BinaryOperator, MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation,
-    UnaryOperator,
-};
+pub use expr::{MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation};
 pub use func::MiddleAstFunction;
 pub use stmt::MiddleAstStatement;
 
@@ -41,7 +38,7 @@ impl MiddleAstRoot {
 
     pub fn append_all_funcs(
         &mut self,
-        stmts: Vec<Spanned<Statement>>,
+        funs: Vec<Spanned<Function>>,
     ) -> Result<(), MiddleAstFunctionError> {
         let mut names = HashMap::new();
         names.insert(
@@ -53,31 +50,24 @@ impl MiddleAstRoot {
             },
         );
         let mut funcs = Vec::new();
-        for st in stmts {
-            if let Statement::FunctionDefinition(func) = st.node {
-                let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
-                if names.contains_key(&idt.node) {
-                    return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredFunc(
-                        names.get(&idt.node).unwrap().ident.clone(),
-                        idt,
-                    )));
-                }
-                names.insert(
-                    idt.node.clone(),
-                    FuncData {
-                        ident: idt,
-                        ret_ty: func.return_type,
-                        param_tys: func.params.iter().map(|a| a.1).collect(),
-                    },
-                );
-
-                funcs.push(Spanned {
-                    node: func,
-                    span: st.span,
-                });
-            } else {
-                return Err(MiddleAstFunctionError(SyntaxError::MessedUpMatrix(st.span)));
+        for Spanned { span, node: func } in funs {
+            let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
+            if names.contains_key(&idt.node) {
+                return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredFunc(
+                    names.get(&idt.node).unwrap().ident.clone(),
+                    idt,
+                )));
             }
+            names.insert(
+                idt.node.clone(),
+                FuncData {
+                    ident: idt,
+                    ret_ty: func.return_type,
+                    param_tys: func.params.iter().map(|a| a.1).collect(),
+                },
+            );
+
+            funcs.push(Spanned { node: func, span });
         }
 
         for func in funcs {

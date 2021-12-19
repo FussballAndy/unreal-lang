@@ -1,5 +1,5 @@
 use ulc_ast::Lit;
-use ulc_types::{errors::SyntaxError, token_kind::TokenKind, ULCType};
+use ulc_types::ULCType;
 
 use crate::stmt::MiddleAstStatement;
 
@@ -46,60 +46,4 @@ pub enum MiddleAstBinaryOperation {
 pub enum MiddleAstUnaryOperation {
     Minus(BoxedExpression),
     Invert(BoxedExpression),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum UnaryOperator {
-    Minus,
-    Not,
-}
-
-impl TryFrom<TokenKind> for UnaryOperator {
-    type Error = SyntaxError;
-
-    fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
-        match value {
-            TokenKind::Minus => Ok(Self::Minus),
-            TokenKind::Not => Ok(Self::Not),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum BinaryOperator {
-    Or,
-    And,
-    Equals,
-    NotEquals,
-    SmallerThan,
-    GreaterThan,
-    SmallerEquals,
-    GreaterEquals,
-    Add,
-    Minus,
-    Multiply,
-    Divide,
-}
-
-impl TryFrom<TokenKind> for BinaryOperator {
-    type Error = SyntaxError;
-
-    fn try_from(value: TokenKind) -> Result<Self, Self::Error> {
-        match value {
-            TokenKind::Or => Ok(Self::Or),
-            TokenKind::And => Ok(Self::And),
-            TokenKind::Equals => Ok(Self::Equals),
-            TokenKind::NotEquals => Ok(Self::NotEquals),
-            TokenKind::SmallerThan => Ok(Self::SmallerThan),
-            TokenKind::GreaterThan => Ok(Self::GreaterThan),
-            TokenKind::SmallerEquals => Ok(Self::SmallerEquals),
-            TokenKind::GreaterEquals => Ok(Self::GreaterEquals),
-            TokenKind::Add => Ok(Self::Add),
-            TokenKind::Minus => Ok(Self::Minus),
-            TokenKind::Multiply => Ok(Self::Multiply),
-            TokenKind::Divide => Ok(Self::Divide),
-            _ => unreachable!(),
-        }
-    }
 }

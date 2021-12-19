@@ -10,5 +10,4 @@ anyhow = "1.0.44"
 chumsky = "0.7.0"
 
 ulc_ast = { path = "../ulc_ast" }
-ulc_lexer = { path = "../ulc_lexer" }
 ulc_types = { path = "../ulc_types" }

@@ -1,5 +1,5 @@
 use ulc_ast::{BinaryOperation, Expression, Function, Lit, Statement};
-use ulc_parser::Parser;
+use ulc_parser::chumsky_parser;
 use ulc_types::{Spanned, ULCType};
 
 #[test]
@@ -10,18 +10,18 @@ fn global_function() {
             println(a);
         end
     "#;
-    let mut parser = Parser::new(test);
-    match parser.parse_global_statement() {
-        Ok(stmt) => {
+    let parser = chumsky_parser(test);
+    match parser.parsed_funcs {
+        Some(stmt) => {
             assert_eq!(
-                stmt.node,
-                Statement::FunctionDefinition(Function {
+                stmt[0].node,
+                Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![
                         Spanned {
-                            span: (42..52).into(),
+                            span: (38..52).into(),
                             node: Statement::Let {
                                 name: Spanned::new(42..43, "a".to_owned()),
                                 let_type: ULCType::Int,
@@ -45,11 +45,18 @@ fn global_function() {
                             }))
                         }
                     ]
-                })
+                }
             )
         }
-        Err(err) => {
-            err.display(test, "test.ul");
+        None => {
+            parser
+                .lexer_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
+            parser
+                .parser_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
             assert!(false)
         }
     }
@@ -62,17 +69,17 @@ fn if_expr() {
             const a: Int = if 5 == 5 then 5 else 5 end;
         end
     "#;
-    let mut parser = Parser::new(test);
-    match parser.parse_global_statement() {
-        Ok(stmt) => {
+    let parser = chumsky_parser(test);
+    match parser.parsed_funcs {
+        Some(stmt) => {
             assert_eq!(
-                stmt.node,
-                Statement::FunctionDefinition(Function {
+                stmt[0].node,
+                Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: ULCType::Unit,
                     body: vec![Spanned {
-                        span: (44..80).into(),
+                        span: (38..80).into(),
                         node: Statement::Const {
                             name: Spanned::new(44..45, "a".to_owned()),
                             const_type: ULCType::Int,
@@ -114,11 +121,18 @@ fn if_expr() {
                             })
                         },
                     }]
-                })
+                }
             )
         }
-        Err(err) => {
-            err.display(test, "test.ul");
+        None => {
+            parser
+                .lexer_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
+            parser
+                .parser_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
             assert!(false)
         }
     }
@@ -136,12 +150,12 @@ fn bigger_if_expr() {
             puts("Hello World!")
         end
     "#;
-    let mut parser = Parser::new(test);
-    match parser.parse_global_statement() {
-        Ok(stmt) => {
+    let parser = chumsky_parser(test);
+    match parser.parsed_funcs {
+        Some(stmt) => {
             assert_eq!(
-                stmt.node,
-                Statement::FunctionDefinition(Function {
+                stmt[0].node,
+                Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: vec![
                         ("argv".to_owned(), ULCType::Int),
@@ -193,25 +207,34 @@ fn bigger_if_expr() {
                         },
                         Spanned {
                             span: (181..201).into(),
-                            node: Statement::UnusedExpression(Box::new(Spanned {
-                                span: (181..201).into(),
-                                node: Expression::FunctionCall {
-                                    function: Spanned::new(181..185, "puts".to_owned()),
-                                    args: vec![Spanned {
-                                        span: (186..200).into(),
-                                        node: Expression::Literal(Lit::String(
-                                            "Hello World!".to_owned()
-                                        ))
-                                    }]
-                                }
-                            }))
+                            node: Statement::ReturnStatement {
+                                expression: Box::new(Spanned {
+                                    span: (181..201).into(),
+                                    node: Expression::FunctionCall {
+                                        function: Spanned::new(181..185, "puts".to_owned()),
+                                        args: vec![Spanned {
+                                            span: (186..200).into(),
+                                            node: Expression::Literal(Lit::String(
+                                                "Hello World!".to_owned()
+                                            ))
+                                        }]
+                                    }
+                                })
+                            }
                         }
                     ]
-                })
+                }
             )
         }
-        Err(err) => {
-            err.display(test, "test.ul");
+        None => {
+            parser
+                .lexer_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
+            parser
+                .parser_errors
+                .into_iter()
+                .for_each(|e| println!("{}", e));
             assert!(false)
         }
     }
