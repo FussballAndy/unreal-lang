@@ -16,7 +16,7 @@ fn parser_raw_expr(
     expr: Recursive<'static, Token, Spanned<Expression>, Simple<Token>>,
     stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, Simple<Token>>,
 ) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + Clone {
-    recursive(|raw_expr| {
+    recursive(|_| {
         let expr_ident = spanned_ident()
             .then(
                 expr.clone()
@@ -58,23 +58,10 @@ fn parser_raw_expr(
                     true_case,
                     false_case,
                 },
-                span: span.into(),
+                span: span.clone().into(),
             });
 
-        let expr_un_op = just(Token::Operator("-".to_owned()))
-            .to(UnaryOperation::Neg as UnOpFun)
-            .or(just(Token::Operator("!".to_owned())).to(UnaryOperation::Not as UnOpFun))
-            .repeated()
-            .then(raw_expr)
-            .foldr(|op_fun: UnOpFun, exp: Spanned<Expression>| {
-                let span = exp.span;
-                Spanned {
-                    node: Expression::UnaryOperation(op_fun(Box::new(exp))),
-                    span,
-                }
-            });
-
-        expr_if.or(expr_lit).or(expr_un_op).or(expr_ident)
+        expr_if.or(expr_lit).or(expr_ident)
     })
 }
 
@@ -84,6 +71,19 @@ fn parser_expr(
 ) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + Clone {
     recursive(|expr| {
         let raw_expr = parser_raw_expr(expr, stmt_list);
+
+        let unary = just(Token::Operator("-".to_owned()))
+            .to(UnaryOperation::Neg as UnOpFun)
+            .or(just(Token::Operator("!".to_owned())).to(UnaryOperation::Not as UnOpFun))
+            .repeated()
+            .then(raw_expr.clone())
+            .foldr(|op_fun: UnOpFun, exp: Spanned<Expression>| {
+                let span = exp.span;
+                Spanned {
+                    node: Expression::UnaryOperation(op_fun(Box::new(exp))),
+                    span,
+                }
+            });
 
         let prd_op = just(Token::Operator("*".to_owned()))
             .to(BinaryOperation::Mul as BinOpFun)
@@ -99,14 +99,16 @@ fn parser_expr(
                 }
             });
 
+        let pr_or_un = product.or(unary);
+
         let sum_op = just(Token::Operator("+".to_owned()))
             .to(BinaryOperation::Add as BinOpFun)
             .or(just(Token::Operator("-".to_owned())).to(BinaryOperation::Sub as BinOpFun))
             .or(just(Token::Operator("and".to_owned())).to(BinaryOperation::And as BinOpFun))
             .or(just(Token::Operator("or".to_owned())).to(BinaryOperation::Or as BinOpFun));
-        let sum = product
+        let sum = pr_or_un
             .clone()
-            .then(sum_op.then(product).repeated())
+            .then(sum_op.then(pr_or_un).repeated())
             .foldl(|lhs, (op, rhs)| {
                 let span = (lhs.span.start..rhs.span.end).into();
                 Spanned {
@@ -133,7 +135,7 @@ fn parser_expr(
                 }
             });
 
-        compare.or(raw_expr)
+        compare
     })
 }
 
@@ -193,19 +195,37 @@ fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Sim
 
         stmt.clone()
             .then(just(Token::Ctrl(';')).ignore_then(stmt.or_not()).repeated())
-            .map(|(left, right)| {
-                let mut result = vec![left];
-                for a in right.into_iter().flatten() {
-                    result.push(a);
-                }
-                if let Some(last) = result.pop() {
-                    if let Statement::UnusedExpression(expr) = last.node {
-                        result.push(Spanned {
+            .map(|(left, mut right)| {
+                let mut result = Vec::new();
+                if right.is_empty() {
+                    result.push(match left {
+                        Spanned {
+                            node: Statement::UnusedExpression(expr),
+                            span,
+                        } => Spanned {
                             node: Statement::ReturnStatement { expression: expr },
-                            span: last.span,
-                        });
-                    } else {
-                        result.push(last);
+                            span,
+                        },
+                        a => a,
+                    })
+                } else {
+                    result.push(left);
+                    let last = right.pop();
+                    result.append(&mut right.into_iter().flatten().collect());
+                    match last {
+                        Some(Some(st)) => {
+                            let stm = match st.node {
+                                Statement::UnusedExpression(expr) => {
+                                    Statement::ReturnStatement { expression: expr }
+                                }
+                                o => o,
+                            };
+                            result.push(Spanned {
+                                node: stm,
+                                span: st.span,
+                            })
+                        }
+                        _ => {}
                     }
                 }
                 result
@@ -278,16 +298,12 @@ pub struct ChumskyParserRes {
 }
 
 pub fn chumsky_parser(src: &str) -> ChumskyParserRes {
-    println!("Lexer...");
     let (tokens, errs) = lexer::lexer().parse_recovery(src);
-    println!("Done");
     if let Some(tokens) = tokens {
         let len = src.chars().count();
-        println!("Parser...");
         // Moving parser to seperate thread because of bigger stack size
         let (res, err) =
             parser_func().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
-        println!("Done");
         ChumskyParserRes {
             parsed_funcs: res,
             lexer_errors: Vec::new(),

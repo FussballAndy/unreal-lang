@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ulc_ast::{BinaryOperation, Expression, Function, Statement, UnaryOperation};
+use ulc_ast::{BinaryOperation, Expression, Function, Statement, UnaryOperation, Lit};
 use ulc_types::{
     errors::{SyntaxError, SyntaxResult},
     Spanned, ULCType,
@@ -9,7 +9,7 @@ use ulc_types::{
 use crate::{
     expr::{MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation},
     stmt::MiddleAstStatement,
-    FuncData,
+    FuncData, check::validate_used_if_expression,
 };
 
 #[derive(Copy, Clone)]
@@ -85,7 +85,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 if let Some(&var_data) = self.vars.get(&name.node) {
                     if var_data.mutable {
                         let ex_span = expr.span;
-                        let (middle_expr, ty) = self.translate_expr(*expr)?;
+                        let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                         if var_data.ty == ty {
                             Ok(MiddleAstStatement::Assignment {
                                 name: var_data.id,
@@ -122,7 +122,7 @@ impl<'a> MiddleAstTranslator<'a> {
                         },
                     );
                     let ex_span = expr.span;
-                    let (middle_expr, ty) = self.translate_expr(*expr)?;
+                    let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                     if const_type == ty {
                         let a = MiddleAstStatement::Const {
                             name: *self.cur_var,
@@ -149,7 +149,7 @@ impl<'a> MiddleAstTranslator<'a> {
                     Err(SyntaxError::AlreadyDeclaredVar(name))
                 } else {
                     let ex_span = expr.span;
-                    let (middle_expr, ty) = self.translate_expr(*expr)?;
+                    let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
 
                     if let_type == ty {
                         if let_type == ULCType::String {
@@ -186,7 +186,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 }
             }
             Statement::ReturnStatement { expression } => {
-                let (middle_expr, ty) = self.translate_expr(*expression)?;
+                let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expression)?)?;
                 if self.return_type != ty {
                     return Err(SyntaxError::NotMatchingType {
                         expected: vec![self.return_type],
@@ -219,7 +219,10 @@ impl<'a> MiddleAstTranslator<'a> {
                     ulc_ast::Lit::Int(_) => ULCType::Int,
                     ulc_ast::Lit::String(_) => ULCType::String,
                 };
-                Ok((MiddleAstExpression::Literal(lit), ty))
+                Ok((MiddleAstExpression::Literal(match lit {
+                    Lit::String(s) => Lit::String(s + "\0"),
+                    a => a,
+                }), ty))
             }
             Expression::Ident(idt) => {
                 if let Some(var_data) = self.vars.get(&idt) {
@@ -234,7 +237,7 @@ impl<'a> MiddleAstTranslator<'a> {
                     let mut par_types_iter = fu.param_tys.iter();
                     for arg in args {
                         let ar_span = arg.span;
-                        let (middle_expr, ty) = self.translate_expr(arg)?;
+                        let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(arg)?)?;
                         if let Some(next) = par_types_iter.next() {
                             if next != &ty {
                                 return Err(SyntaxError::NotMatchingType {
@@ -295,7 +298,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 false_case,
             } => {
                 let cond_span = condition.span;
-                let (middle_cond, cond_ty) = self.translate_expr(*condition)?;
+                let (middle_cond, cond_ty) = self.translate_expr(validate_used_if_expression(*condition)?)?;
 
                 if cond_ty != ULCType::Bool {
                     return Err(SyntaxError::NotMatchingType {
@@ -370,7 +373,7 @@ impl<'a> MiddleAstTranslator<'a> {
         match oper {
             UnaryOperation::Neg(expr) => {
                 let ex_span = expr.span;
-                let (middle_expr, ty) = self.translate_expr(*expr)?;
+                let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                 if ty != ULCType::Int {
                     return Err(SyntaxError::NotMatchingType {
                         expected: vec![ULCType::Int],
@@ -387,7 +390,7 @@ impl<'a> MiddleAstTranslator<'a> {
             }
             UnaryOperation::Not(expr) => {
                 let ex_span = expr.span;
-                let (middle_expr, ty) = self.translate_expr(*expr)?;
+                let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                 if ty != ULCType::Bool {
                     return Err(SyntaxError::NotMatchingType {
                         expected: vec![ULCType::Bool],
@@ -487,8 +490,8 @@ impl<'a> MiddleAstTranslator<'a> {
         };
         let lhs_span = lhs.span;
         let rhs_span = rhs.span;
-        let (lhs_node, lhs_ty) = self.translate_expr(*lhs)?;
-        let (rhs_node, rhs_ty) = self.translate_expr(*rhs)?;
+        let (lhs_node, lhs_ty) = self.translate_expr(validate_used_if_expression(*lhs)?)?;
+        let (rhs_node, rhs_ty) = self.translate_expr(validate_used_if_expression(*rhs)?)?;
 
         if lhs_ty != expect {
             return Err(SyntaxError::NotMatchingType {

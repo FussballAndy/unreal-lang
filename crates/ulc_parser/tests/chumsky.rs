@@ -10,13 +10,11 @@ fn global_func() {
             println(a);
         end
     "#;
-    println!("Running parser");
     let ChumskyParserRes {
         parsed_funcs,
         lexer_errors,
         parser_errors,
     } = chumsky_parser(test.trim());
-    println!("Finished parser");
     match parsed_funcs {
         Some(func) => {
             assert_eq!(
@@ -42,9 +40,9 @@ fn global_func() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (57..67).into(),
                                 node: Expression::FunctionCall {
-                                    function: Spanned::new(57..63, "println".to_owned()),
+                                    function: Spanned::new(57..64, "println".to_owned()),
                                     args: vec![Spanned {
-                                        span: (64..65).into(),
+                                        span: (65..66).into(),
                                         node: Expression::Ident("a".to_owned()),
                                     }]
                                 }

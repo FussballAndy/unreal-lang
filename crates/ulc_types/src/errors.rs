@@ -92,12 +92,12 @@ impl SyntaxError {
                 .with_labels(vec![
                     Label::primary(file_id, token.span).with_message("Unknown type")
                 ]),
-            Self::InvalidIfExpression { span, sp_msg } => {
-                Diagnostic::error().with_message("").with_labels(vec![
+            Self::InvalidIfExpression { span, sp_msg } => Diagnostic::error()
+                .with_message("Problematic if expression")
+                .with_labels(vec![
                     Label::primary(file_id, *span),
                     Label::secondary(file_id, sp_msg.span).with_message(sp_msg.node),
-                ])
-            }
+                ]),
             Self::NotMutableVar(var) => Diagnostic::error()
                 .with_message("Variable is not mutable!")
                 .with_labels(vec![

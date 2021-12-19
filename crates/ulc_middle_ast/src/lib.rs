@@ -1,6 +1,7 @@
 mod expr;
 mod func;
 mod stmt;
+mod check;
 
 use std::collections::HashMap;
 

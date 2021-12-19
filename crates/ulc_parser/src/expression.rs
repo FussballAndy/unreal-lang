@@ -140,9 +140,8 @@ impl Parser<'_> {
 
                 self.consume(op)?;
 
-                let right_hand_side = crate::validate_used_if_expression(
-                    self.parse_expression(right_binding_power)?,
-                )?;
+                let right_hand_side =
+                    self.parse_expression(right_binding_power)?;
                 let bin_op = match op {
                     TokenKind::Add => BinaryOperation::Add,
                     TokenKind::Minus => BinaryOperation::Sub,
@@ -184,13 +183,11 @@ impl Parser<'_> {
                 TokenKind::True => Lit::Bool(true),
                 TokenKind::False => Lit::Bool(false),
                 TokenKind::IntLit => Lit::Int(
-                    // stdlib ftw
                     text.parse()
                         .map_err(|_| SyntaxError::InvalidLiteral(token))?,
                 ),
                 TokenKind::StringLit => Lit::String(
-                    // Trim the quotes
-                    text[1..(text.len() - 1)].to_string() + "\0",
+                    text[1..(text.len() - 1)].to_owned(),
                 ),
                 _ => unreachable!(),
             }),
@@ -292,7 +289,7 @@ impl Parser<'_> {
             if !args.is_empty() && self.at(TokenKind::Comma) {
                 self.consume(TokenKind::Comma)?;
             }
-            let expr = crate::validate_used_if_expression(self.expression()?)?;
+            let expr = self.expression()?;
             args.push(expr);
         }
         let end = self.consume_next(TokenKind::RightParen)?;

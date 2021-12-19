@@ -34,7 +34,7 @@ impl Parser<'_> {
                 match self.peek() {
                     TokenKind::Assign => {
                         self.consume(TokenKind::Assign)?;
-                        let expr = crate::validate_used_if_expression(self.expression()?)?;
+                        let expr = self.expression()?;
                         Ok(Spanned {
                             span: (ident_token.span.start..expr.span.end).into(),
                             node: Statement::Assignment {
@@ -94,7 +94,7 @@ impl Parser<'_> {
         let const_type = self.consume_type()?;
 
         self.consume(TokenKind::Assign)?;
-        let expr = crate::validate_used_if_expression(self.expression()?)?;
+        let expr = self.expression()?;
 
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
@@ -117,7 +117,7 @@ impl Parser<'_> {
         self.consume(TokenKind::Colon)?;
         let let_type = self.consume_type()?;
         self.consume(TokenKind::Assign)?;
-        let expr = crate::validate_used_if_expression(self.expression()?)?;
+        let expr = self.expression()?;
 
         Ok(Spanned {
             span: (ident_name.span.start..expr.span.end).into(),
