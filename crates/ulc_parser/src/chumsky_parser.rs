@@ -137,105 +137,79 @@ fn parser_expr(
     })
 }
 
-#[inline(always)]
-fn parser_stmt(
-    stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, Simple<Token>>,
-) -> impl Parser<Token, Spanned<Statement>, Error = Simple<Token>> {
-    recursive::<'_, _, Spanned<Statement>, _, _, _>(|raw_stmt_list| {
-        let expr = parser_expr(stmt_list);
-
-        let stmt_let = just(Token::Let)
-            .ignore_then(spanned_ident())
-            .then(just(Token::Ctrl(':')).ignore_then(parser_type()))
-            .then_ignore(just(Token::Operator("=".to_owned())))
-            .then(expr.clone())
-            .map_with_span(|((name, let_type), val), span| Spanned {
-                node: Statement::Let {
-                    name,
-                    let_type,
-                    expr: Box::new(val),
-                },
-                span: span.into(),
-            });
-
-        let stmt_const = just(Token::Const)
-            .ignore_then(spanned_ident())
-            .then(just(Token::Ctrl(':')).ignore_then(parser_type()))
-            .then_ignore(just(Token::Operator("=".to_owned())))
-            .then(expr.clone())
-            .map_with_span(|((name, const_type), val), span| Spanned {
-                node: Statement::Const {
-                    name,
-                    const_type,
-                    expr: Box::new(val),
-                },
-                span: span.into(),
-            });
-
-        let stmt_ass = spanned_ident()
-            .then_ignore(just(Token::Operator("=".to_owned())))
-            .then(expr.clone())
-            .map_with_span(|(name, val), span| Spanned {
-                node: Statement::Assignment {
-                    name,
-                    expr: Box::new(val),
-                },
-                span: span.into(),
-            });
-
-        let stmt = stmt_let
-            .or(stmt_const)
-            .or(stmt_ass)
-            .or(expr.map_with_span(|expr, span| Spanned {
-                node: Statement::UnusedExpression(Box::new(expr)),
-                span: span.into(),
-            }));
-
-        stmt.then(
-            just(Token::Ctrl(';'))
-                .ignore_then(raw_stmt_list.or_not())
-                .repeated(),
-        )
-        .foldl::<Spanned<Statement>, _, _>(|a, b| {
-            let span = if let Some(rhs) = &b {
-                (a.span.start..rhs.span.end).into()
-            } else {
-                (a.span.start..a.span.end).into()
-            };
-            Spanned {
-                node: Statement::StmtChain(Box::new(a), b.map(Box::new)),
-                span,
-            }
-        })
-    })
-}
-
 fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Simple<Token>> {
     recursive(|stmt_list| {
-        parser_stmt(stmt_list).map(|a: Spanned<Statement>| {
-            let mut stmts: Vec<Spanned<Statement>> = Vec::new();
-            let mut cur: Option<Spanned<Statement>> = Some(a);
-            while let Some(st) = cur {
-                if let Statement::StmtChain(lhs, rhs) = st.node {
-                    stmts.push(*lhs);
-                    cur = rhs.map(|x| *x);
-                } else {
-                    stmts.push(st);
-                    cur = None;
+        // marked as recursive cuz I don't know any other way to get `.clone()` to work.
+        let stmt = recursive(|_| {
+            let expr = parser_expr(stmt_list);
+
+            let stmt_let = just(Token::Let)
+                .ignore_then(spanned_ident())
+                .then(just(Token::Ctrl(':')).ignore_then(parser_type()))
+                .then_ignore(just(Token::Operator("=".to_owned())))
+                .then(expr.clone())
+                .map_with_span(|((name, let_type), val), span| Spanned {
+                    node: Statement::Let {
+                        name,
+                        let_type,
+                        expr: Box::new(val),
+                    },
+                    span: span.into(),
+                });
+
+            let stmt_const = just(Token::Const)
+                .ignore_then(spanned_ident())
+                .then(just(Token::Ctrl(':')).ignore_then(parser_type()))
+                .then_ignore(just(Token::Operator("=".to_owned())))
+                .then(expr.clone())
+                .map_with_span(|((name, const_type), val), span| Spanned {
+                    node: Statement::Const {
+                        name,
+                        const_type,
+                        expr: Box::new(val),
+                    },
+                    span: span.into(),
+                });
+
+            let stmt_ass = spanned_ident()
+                .then_ignore(just(Token::Operator("=".to_owned())))
+                .then(expr.clone())
+                .map_with_span(|(name, val), span| Spanned {
+                    node: Statement::Assignment {
+                        name,
+                        expr: Box::new(val),
+                    },
+                    span: span.into(),
+                });
+
+            stmt_let
+                .or(stmt_const)
+                .or(stmt_ass)
+                .or(expr.map_with_span(|exp, span| Spanned {
+                    node: Statement::UnusedExpression(Box::new(exp)),
+                    span: span.into(),
+                }))
+        });
+
+        stmt.clone()
+            .then(just(Token::Ctrl(';')).ignore_then(stmt.or_not()).repeated())
+            .map(|(left, right)| {
+                let mut result = vec![left];
+                for a in right.into_iter().flatten() {
+                    result.push(a);
                 }
-            }
-            if let Some(a) = stmts.pop() {
-                if let Statement::UnusedExpression(expr) = a.node {
-                    stmts.push(Spanned {
-                        node: Statement::ReturnStatement { expression: expr },
-                        span: a.span,
-                    });
-                } else {
-                    stmts.push(a);
+                if let Some(last) = result.pop() {
+                    if let Statement::UnusedExpression(expr) = last.node {
+                        result.push(Spanned {
+                            node: Statement::ReturnStatement { expression: expr },
+                            span: last.span,
+                        });
+                    } else {
+                        result.push(last);
+                    }
                 }
-            }
-            stmts
-        })
+                result
+            })
     })
 }
 
@@ -311,7 +285,7 @@ pub fn chumsky_parser(src: &str) -> ChumskyParserRes {
         let len = src.chars().count();
         println!("Parser...");
         // Moving parser to seperate thread because of bigger stack size
-        let (res, err) = 
+        let (res, err) =
             parser_func().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
         println!("Done");
         ChumskyParserRes {
