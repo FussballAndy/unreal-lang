@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use ulc_ast::{BinaryOperation, Expression, Function, Lit, Statement, UnaryOperation};
 use ulc_types::{
     errors::{SyntaxError, SyntaxResult},
+    token::TokenSpan,
     Spanned, ULCType,
 };
 
@@ -18,11 +19,12 @@ struct VarData {
     id: usize,
     mutable: bool,
     ty: ULCType,
+    span: TokenSpan,
 }
 
 pub struct MiddleAstFunction {
     pub ident: String,
-    pub return_type: ULCType,
+    pub return_type: Spanned<ULCType>,
     pub params: Vec<(usize, ULCType)>,
     pub body: Vec<MiddleAstStatement>,
 }
@@ -41,13 +43,18 @@ impl MiddleAstFunction {
         let mut vars: HashMap<String, VarData> = HashMap::new();
         let mut a = Vec::new();
         let mut cur_var = 0;
-        for (par_name, par_type) in params {
+        for Spanned {
+            node: (par_name, par_type),
+            span,
+        } in params
+        {
             vars.insert(
                 par_name,
                 VarData {
                     id: cur_var,
                     mutable: false,
                     ty: par_type,
+                    span,
                 },
             );
             a.push((cur_var, par_type));
@@ -56,7 +63,7 @@ impl MiddleAstFunction {
         let mut middle_body = Vec::new();
         for stmt in body {
             let mut mat = MiddleAstTranslator {
-                return_type,
+                return_type: return_type.clone(),
                 known_funcs,
                 vars: &mut vars,
                 cur_var: &mut cur_var,
@@ -73,7 +80,7 @@ impl MiddleAstFunction {
 }
 
 struct MiddleAstTranslator<'a> {
-    return_type: ULCType,
+    return_type: Spanned<ULCType>,
     known_funcs: &'a HashMap<String, FuncData>,
     vars: &'a mut HashMap<String, VarData>,
     cur_var: &'a mut usize,
@@ -95,16 +102,25 @@ impl<'a> MiddleAstTranslator<'a> {
                             })
                         } else {
                             Err(SyntaxError::NotMatchingType {
-                                expected: vec![var_data.ty],
-                                got: ty,
-                                span: ex_span,
+                                expected: Spanned {
+                                    node: vec![var_data.ty],
+                                    span: var_data.span,
+                                },
+                                got: Spanned {
+                                    node: ty,
+                                    span: ex_span,
+                                },
                             })
                         }
                     } else {
-                        Err(SyntaxError::NotMutableVar(name))
+                        Err(SyntaxError::NotMutableVar {
+                            ident: name.node,
+                            declared: var_data.span,
+                            used: name.span,
+                        })
                     }
                 } else {
-                    Err(SyntaxError::InvalidIdent(name))
+                    Err(SyntaxError::IdentNotFound(name))
                 }
             }
             Statement::Const {
@@ -112,8 +128,13 @@ impl<'a> MiddleAstTranslator<'a> {
                 const_type,
                 expr,
             } => {
-                if self.vars.get(&name.node).is_some() {
-                    Err(SyntaxError::AlreadyDeclaredVar(name))
+                if let Some(var_data) = self.vars.get(&name.node) {
+                    Err(SyntaxError::AlreadyDeclaredIdent {
+                        ident: name.node,
+                        existing: var_data.span,
+                        new: name.span,
+                        is_function: false,
+                    })
                 } else {
                     self.vars.insert(
                         name.node,
@@ -121,6 +142,7 @@ impl<'a> MiddleAstTranslator<'a> {
                             id: *self.cur_var,
                             mutable: false,
                             ty: const_type,
+                            span: name.span,
                         },
                     );
                     let ex_span = expr.span;
@@ -136,9 +158,14 @@ impl<'a> MiddleAstTranslator<'a> {
                         Ok(a)
                     } else {
                         Err(SyntaxError::NotMatchingType {
-                            expected: vec![const_type],
-                            got: ty,
-                            span: ex_span,
+                            expected: Spanned {
+                                node: vec![const_type],
+                                span: name.span,
+                            },
+                            got: Spanned {
+                                node: ty,
+                                span: ex_span,
+                            },
                         })
                     }
                 }
@@ -148,8 +175,13 @@ impl<'a> MiddleAstTranslator<'a> {
                 let_type,
                 expr,
             } => {
-                if self.vars.get(&name.node).is_some() {
-                    Err(SyntaxError::AlreadyDeclaredVar(name))
+                if let Some(var_data) = self.vars.get(&name.node) {
+                    Err(SyntaxError::AlreadyDeclaredIdent {
+                        ident: name.node,
+                        existing: var_data.span,
+                        new: name.span,
+                        is_function: false,
+                    })
                 } else {
                     let ex_span = expr.span;
                     let (middle_expr, ty) =
@@ -169,6 +201,7 @@ impl<'a> MiddleAstTranslator<'a> {
                                 id: *self.cur_var,
                                 mutable: true,
                                 ty: let_type,
+                                span: name.span,
                             },
                         );
 
@@ -182,9 +215,14 @@ impl<'a> MiddleAstTranslator<'a> {
                         Ok(a)
                     } else {
                         Err(SyntaxError::NotMatchingType {
-                            expected: vec![let_type],
-                            got: ty,
-                            span: ex_span,
+                            expected: Spanned {
+                                node: vec![let_type],
+                                span: name.span,
+                            },
+                            got: Spanned {
+                                node: ty,
+                                span: ex_span,
+                            },
                         })
                     }
                 }
@@ -192,11 +230,16 @@ impl<'a> MiddleAstTranslator<'a> {
             Statement::ReturnStatement { expression } => {
                 let (middle_expr, ty) =
                     self.translate_expr(validate_used_if_expression(*expression)?)?;
-                if self.return_type != ty {
+                if self.return_type.node != ty {
                     return Err(SyntaxError::NotMatchingType {
-                        expected: vec![self.return_type],
-                        got: ty,
-                        span: stmt.span,
+                        expected: Spanned {
+                            node: vec![self.return_type.node],
+                            span: self.return_type.span,
+                        },
+                        got: Spanned {
+                            node: ty,
+                            span: stmt.span,
+                        },
                     });
                 }
                 Ok(MiddleAstStatement::ReturnStatement {
@@ -236,7 +279,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 if let Some(var_data) = self.vars.get(&idt) {
                     Ok((MiddleAstExpression::Ident(var_data.id), var_data.ty))
                 } else {
-                    Err(SyntaxError::InvalidIdent(Spanned::new(expr.span, idt)))
+                    Err(SyntaxError::IdentNotFound(Spanned::new(expr.span, idt)))
                 }
             }
             Expression::FunctionCall { function, args } => {
@@ -248,11 +291,16 @@ impl<'a> MiddleAstTranslator<'a> {
                         let (middle_expr, ty) =
                             self.translate_expr(validate_used_if_expression(arg)?)?;
                         if let Some(next) = par_types_iter.next() {
-                            if next != &ty {
+                            if next.node != ty {
                                 return Err(SyntaxError::NotMatchingType {
-                                    expected: vec![*next],
-                                    got: ty,
-                                    span: ar_span,
+                                    expected: Spanned {
+                                        node: vec![next.node],
+                                        span: next.span,
+                                    },
+                                    got: Spanned {
+                                        node: ty,
+                                        span: ar_span,
+                                    },
                                 });
                             }
                         } else {
@@ -262,7 +310,7 @@ impl<'a> MiddleAstTranslator<'a> {
                                     fu.ident.node,
                                     fu.param_tys
                                         .iter()
-                                        .map(|s| s.into())
+                                        .map(|s| (&s.node).into())
                                         .collect::<Vec<&str>>()
                                         .join(", ")
                                 ),
@@ -279,7 +327,7 @@ impl<'a> MiddleAstTranslator<'a> {
                                 fu.ident.node,
                                 fu.param_tys
                                     .iter()
-                                    .map(|s| s.into())
+                                    .map(|s| (&s.node).into())
                                     .collect::<Vec<&str>>()
                                     .join(", ")
                             ),
@@ -296,7 +344,7 @@ impl<'a> MiddleAstTranslator<'a> {
                         fu.ret_ty,
                     ))
                 } else {
-                    Err(SyntaxError::InvalidIdent(function))
+                    Err(SyntaxError::IdentNotFound(function))
                 }
             }
             Expression::BinaryOperation(oper) => self.translate_binary_operation(oper),
@@ -312,15 +360,20 @@ impl<'a> MiddleAstTranslator<'a> {
 
                 if cond_ty != ULCType::Bool {
                     return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Bool],
-                        got: cond_ty,
-                        span: cond_span,
+                        expected: Spanned {
+                            node: vec![ULCType::Bool],
+                            span: cond_span,
+                        },
+                        got: Spanned {
+                            node: cond_ty,
+                            span: cond_span,
+                        },
                     });
                 }
 
                 let cond = Box::new(middle_cond);
 
-                let mut if_ty = ULCType::Unit;
+                let mut if_ty = Spanned::new(expr.span, ULCType::Unit);
 
                 let mut true_c = Vec::new();
 
@@ -330,10 +383,13 @@ impl<'a> MiddleAstTranslator<'a> {
 
                 if let Some(Spanned {
                     node: MiddleAstStatement::ReturnStatement { ty, .. },
-                    ..
+                    span,
                 }) = true_c.last()
                 {
-                    if_ty = *ty;
+                    if_ty = Spanned {
+                        node: *ty,
+                        span: *span,
+                    };
                 }
 
                 let false_c = if let Some(false_ca) = false_case {
@@ -346,11 +402,16 @@ impl<'a> MiddleAstTranslator<'a> {
                         span,
                     }) = fl_cases.last()
                     {
-                        if &if_ty != ty {
+                        if &if_ty.node != ty {
                             return Err(SyntaxError::NotMatchingType {
-                                expected: vec![if_ty],
-                                got: *ty,
-                                span: *span,
+                                expected: Spanned {
+                                    node: vec![if_ty.node],
+                                    span: if_ty.span,
+                                },
+                                got: Spanned {
+                                    node: *ty,
+                                    span: *span,
+                                },
                             });
                         }
                     }
@@ -364,13 +425,13 @@ impl<'a> MiddleAstTranslator<'a> {
                         condition: cond,
                         true_case: true_c.iter().map(|s| s.node.clone()).collect(),
                         false_case: false_c,
-                        ret_ty: if if_ty == ULCType::Unit {
+                        ret_ty: if if_ty.node == ULCType::Unit {
                             None
                         } else {
-                            Some(if_ty)
+                            Some(if_ty.node)
                         },
                     },
-                    if_ty,
+                    if_ty.node,
                 ))
             }
         }
@@ -386,9 +447,14 @@ impl<'a> MiddleAstTranslator<'a> {
                 let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                 if ty != ULCType::Int {
                     return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Int],
-                        got: ty,
-                        span: ex_span,
+                        expected: Spanned {
+                            node: vec![ULCType::Int],
+                            span: ex_span,
+                        },
+                        got: Spanned {
+                            node: ty,
+                            span: ex_span,
+                        },
                     });
                 }
                 Ok((
@@ -403,9 +469,14 @@ impl<'a> MiddleAstTranslator<'a> {
                 let (middle_expr, ty) = self.translate_expr(validate_used_if_expression(*expr)?)?;
                 if ty != ULCType::Bool {
                     return Err(SyntaxError::NotMatchingType {
-                        expected: vec![ULCType::Bool],
-                        got: ty,
-                        span: ex_span,
+                        expected: Spanned {
+                            node: vec![ULCType::Bool],
+                            span: ex_span,
+                        },
+                        got: Spanned {
+                            node: ty,
+                            span: ex_span,
+                        },
                     });
                 }
                 Ok((
@@ -505,17 +576,27 @@ impl<'a> MiddleAstTranslator<'a> {
 
         if lhs_ty != expect {
             return Err(SyntaxError::NotMatchingType {
-                expected: vec![expect],
-                got: lhs_ty,
-                span: lhs_span,
+                expected: Spanned {
+                    node: vec![expect],
+                    span: lhs_span,
+                },
+                got: Spanned {
+                    node: lhs_ty,
+                    span: lhs_span,
+                },
             });
         }
 
         if rhs_ty != expect {
             return Err(SyntaxError::NotMatchingType {
-                expected: vec![expect],
-                got: rhs_ty,
-                span: rhs_span,
+                expected: Spanned {
+                    node: vec![expect],
+                    span: rhs_span,
+                },
+                got: Spanned {
+                    node: rhs_ty,
+                    span: rhs_span,
+                },
             });
         }
 

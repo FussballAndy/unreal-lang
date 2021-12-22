@@ -1,11 +1,13 @@
 pub mod errors;
 pub mod token;
 mod types;
+
+use token::TokenSpan;
+
+pub use token::Token;
 pub use types::ULCType;
 
 use std::fmt::Display;
-
-use token::TokenSpan;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Spanned<T> {

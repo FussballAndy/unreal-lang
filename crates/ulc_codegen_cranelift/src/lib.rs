@@ -89,9 +89,9 @@ impl CraneliftCodegonBackend {
                 false,
             )));
         }
-        if func.return_type != ULCType::Unit {
+        if func.return_type.node != ULCType::Unit {
             sig.returns.push(AbiParam::new(convert_type(
-                func.return_type,
+                func.return_type.node,
                 self.module.target_config(),
                 false,
             )));

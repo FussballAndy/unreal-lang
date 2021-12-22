@@ -20,7 +20,7 @@ pub struct MiddleAstRoot {
 pub(crate) struct FuncData {
     ident: Spanned<String>,
     ret_ty: ULCType,
-    param_tys: Vec<ULCType>,
+    param_tys: Vec<Spanned<ULCType>>,
 }
 
 impl Default for MiddleAstRoot {
@@ -46,24 +46,33 @@ impl MiddleAstRoot {
             FuncData {
                 ident: Spanned::new(0..0, "puts".to_owned()),
                 ret_ty: ULCType::Unit,
-                param_tys: vec![ULCType::String],
+                param_tys: vec![Spanned::new(0..0, ULCType::String)],
             },
         );
         let mut funcs = Vec::new();
         for Spanned { span, node: func } in funs {
             let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
             if names.contains_key(&idt.node) {
-                return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredFunc(
-                    names.get(&idt.node).unwrap().ident.clone(),
-                    idt,
-                )));
+                return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredIdent {
+                    existing: names.get(&idt.node).unwrap().ident.span,
+                    ident: idt.node,
+                    new: idt.span,
+                    is_function: true,
+                }));
             }
             names.insert(
                 idt.node.clone(),
                 FuncData {
                     ident: idt,
-                    ret_ty: func.return_type,
-                    param_tys: func.params.iter().map(|a| a.1).collect(),
+                    ret_ty: func.return_type.node,
+                    param_tys: func
+                        .params
+                        .iter()
+                        .map(|a| Spanned {
+                            node: a.node.1,
+                            span: a.span,
+                        })
+                        .collect(),
                 },
             );
 

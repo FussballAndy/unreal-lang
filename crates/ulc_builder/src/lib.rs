@@ -88,7 +88,7 @@ fn build_input(
             parser
                 .parser_errors
                 .into_iter()
-                .for_each(|e| println!("{}", e));
+                .for_each(|e| e.display(&input, data.main_file));
             anyhow::bail!("Aborted due to error. Read error report above.")
         }
     };

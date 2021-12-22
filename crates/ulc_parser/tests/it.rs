@@ -18,7 +18,7 @@ fn global_function() {
                 Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
-                    return_type: ULCType::Unit,
+                    return_type: Spanned::new(25..27, ULCType::Unit),
                     body: vec![
                         Spanned {
                             span: (38..52).into(),
@@ -56,7 +56,7 @@ fn global_function() {
             parser
                 .parser_errors
                 .into_iter()
-                .for_each(|e| println!("{}", e));
+                .for_each(|e| e.display(test, "test.ul"));
             assert!(false)
         }
     }
@@ -77,7 +77,7 @@ fn if_expr() {
                 Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
-                    return_type: ULCType::Unit,
+                    return_type: Spanned::new(25..27, ULCType::Unit),
                     body: vec![Spanned {
                         span: (38..80).into(),
                         node: Statement::Const {
@@ -132,7 +132,7 @@ fn if_expr() {
             parser
                 .parser_errors
                 .into_iter()
-                .for_each(|e| println!("{}", e));
+                .for_each(|e| e.display(test, "test.ul"));
             assert!(false)
         }
     }
@@ -158,10 +158,16 @@ fn bigger_if_expr() {
                 Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: vec![
-                        ("argv".to_owned(), ULCType::Int),
-                        ("argc".to_owned(), ULCType::Int)
+                        Spanned {
+                            node: ("argv".to_owned(), ULCType::Int),
+                            span: (24..32).into()
+                        },
+                        Spanned {
+                            node: ("argc".to_owned(), ULCType::Int),
+                            span: (33..41).into()
+                        }
                     ],
-                    return_type: ULCType::Unit,
+                    return_type: Spanned::new(44..46, ULCType::Unit),
                     body: vec![
                         Spanned {
                             span: (60..167).into(),
@@ -234,7 +240,7 @@ fn bigger_if_expr() {
             parser
                 .parser_errors
                 .into_iter()
-                .for_each(|e| println!("{}", e));
+                .for_each(|e| e.display(test, "test.ul"));
             assert!(false)
         }
     }

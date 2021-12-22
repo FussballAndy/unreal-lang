@@ -1,47 +1,7 @@
 use chumsky::prelude::*;
+use ulc_types::Token;
 
 type Span = std::ops::Range<usize>;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum Token {
-    Bool(bool),
-    Num(i32),
-    String(String),
-    Operator(String),
-    Ctrl(char),
-    Ident(String),
-    Type(&'static str),
-    Func,
-    Let,
-    Const,
-    If,
-    Do,
-    Then,
-    Else,
-    End,
-}
-
-impl std::fmt::Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Token::Bool(b) => write!(f, "{}", b),
-            Token::Num(i) => write!(f, "{}", i),
-            Token::String(s) => write!(f, "{}", s),
-            Token::Operator(o) => write!(f, "{}", o),
-            Token::Ctrl(c) => write!(f, "{}", c),
-            Token::Ident(i) => write!(f, "{}", i),
-            Token::Type(t) => write!(f, "{}", t),
-            Token::Func => write!(f, "function"),
-            Token::Let => write!(f, "let"),
-            Token::Const => write!(f, "const"),
-            Token::If => write!(f, "if"),
-            Token::Do => write!(f, "do"),
-            Token::Then => write!(f, "them"),
-            Token::Else => write!(f, "else"),
-            Token::End => write!(f, "end"),
-        }
-    }
-}
 
 pub(super) fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<char>> {
     let num = text::int(10).map(|s: String| Token::Num(s.parse().unwrap()));

@@ -40,8 +40,8 @@ pub enum Lit {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     pub ident: Spanned<String>,
-    pub return_type: ULCType,
-    pub params: Vec<(String, ULCType)>,
+    pub return_type: Spanned<ULCType>,
+    pub params: Vec<Spanned<(String, ULCType)>>,
     pub body: Vec<Spanned<Statement>>,
 }
 

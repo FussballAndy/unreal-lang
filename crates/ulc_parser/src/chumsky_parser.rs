@@ -1,21 +1,18 @@
 use chumsky::{prelude::*, Error, Stream};
 use ulc_ast::{BinaryOperation, BoxedExpression, Expression, Function, Statement, UnaryOperation};
-use ulc_types::{Spanned, ULCType};
+use ulc_types::{errors::SyntaxError, Spanned, Token, ULCType};
 
 mod lexer;
-pub use lexer::Token;
 mod literal;
-
-type Span = std::ops::Range<usize>;
 
 type BinOpFun = fn(BoxedExpression, BoxedExpression) -> BinaryOperation;
 type UnOpFun = fn(BoxedExpression) -> UnaryOperation;
 
 #[inline(always)]
 fn parser_raw_expr(
-    expr: Recursive<'static, Token, Spanned<Expression>, Simple<Token>>,
-    stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, Simple<Token>>,
-) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + Clone {
+    expr: Recursive<'static, Token, Spanned<Expression>, SyntaxError>,
+    stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, SyntaxError>,
+) -> impl Parser<Token, Spanned<Expression>, Error = SyntaxError> + Clone {
     recursive(|_| {
         let expr_ident = spanned_ident()
             .then(
@@ -24,7 +21,7 @@ fn parser_raw_expr(
                     .delimited_by(Token::Ctrl('('), Token::Ctrl(')'))
                     .or_not(),
             )
-            .map_with_span(|(idt, exprs), span: Span| {
+            .map_with_span(|(idt, exprs), span| {
                 if let Some(args) = exprs {
                     Spanned {
                         node: Expression::FunctionCall {
@@ -67,8 +64,8 @@ fn parser_raw_expr(
 
 #[inline(always)]
 fn parser_expr(
-    stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, Simple<Token>>,
-) -> impl Parser<Token, Spanned<Expression>, Error = Simple<Token>> + Clone {
+    stmt_list: Recursive<'static, Token, Vec<Spanned<Statement>>, SyntaxError>,
+) -> impl Parser<Token, Spanned<Expression>, Error = SyntaxError> + Clone {
     recursive(|expr| {
         let raw_expr = parser_raw_expr(expr, stmt_list);
 
@@ -137,7 +134,7 @@ fn parser_expr(
     })
 }
 
-fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Simple<Token>> {
+fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = SyntaxError> {
     recursive(|stmt_list| {
         // marked as recursive cuz I don't know any other way to get `.clone()` to work.
         let stmt = recursive(|_| {
@@ -229,7 +226,7 @@ fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Sim
     })
 }
 
-pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simple<Token>> {
+pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = SyntaxError> {
     let func = just(Token::Func)
         .ignore_then(spanned_ident())
         .then(
@@ -243,7 +240,10 @@ pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simpl
             just(Token::Ctrl(':'))
                 .ignore_then(parser_type())
                 .or_not()
-                .map(|ty| ty.unwrap_or(ULCType::Unit)),
+                .map_with_span(|ty, span| Spanned {
+                    node: ty.unwrap_or(ULCType::Unit),
+                    span: span.into(),
+                }),
         )
         .then(parser_stmt_list().delimited_by(Token::Do, Token::End))
         .map_with_span(|(((name_idt, params), return_type), stmts), span| Spanned {
@@ -255,42 +255,55 @@ pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Simpl
             },
             span: span.into(),
         });
-        
+
     func.repeated().then_ignore(end())
 }
 
 #[inline(always)]
-fn parser_type() -> impl Parser<Token, ULCType, Error = Simple<Token>> + Clone {
+fn parser_type() -> impl Parser<Token, ULCType, Error = SyntaxError> + Clone {
     just(Token::Type("Int"))
         .to(ULCType::Int)
         .or(just(Token::Type("Bool")).to(ULCType::Bool))
         .or(just(Token::Type("String")).to(ULCType::String))
 }
 
-fn spanned_ident() -> impl Parser<Token, Spanned<String>, Error = Simple<Token>> {
+fn spanned_ident() -> impl Parser<Token, Spanned<String>, Error = SyntaxError> {
     let ident = filter_map(|span, tok| match tok {
         Token::Ident(idt) => Ok(idt),
-        _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+        _ => Err(SyntaxError::expected_input_found(
+            span,
+            Vec::new(),
+            Some(tok),
+        )),
     });
-    ident.map_with_span(|idt, span: Span| Spanned {
+    ident.map_with_span(|idt, span| Spanned {
         node: idt,
         span: span.into(),
     })
 }
 
-fn parser_ident_and_type() -> impl Parser<Token, (String, ULCType), Error = Simple<Token>> {
+fn parser_ident_and_type() -> impl Parser<Token, Spanned<(String, ULCType)>, Error = SyntaxError> {
     let ident = filter_map(|span, tok| match tok {
         Token::Ident(idt) => Ok(idt),
-        _ => Err(Simple::expected_input_found(span, Vec::new(), Some(tok))),
+        _ => Err(SyntaxError::expected_input_found(
+            span,
+            Vec::new(),
+            Some(tok),
+        )),
     });
 
-    ident.then(just(Token::Ctrl(':')).ignore_then(parser_type()))
+    ident
+        .then(just(Token::Ctrl(':')).ignore_then(parser_type()))
+        .map_with_span(|stuff, span| Spanned {
+            node: stuff,
+            span: span.into(),
+        })
 }
 
 pub struct ChumskyParserRes {
     pub parsed_funcs: Option<Vec<Spanned<Function>>>,
     pub lexer_errors: Vec<Simple<char>>,
-    pub parser_errors: Vec<Simple<Token>>,
+    pub parser_errors: Vec<SyntaxError>,
 }
 
 pub fn chumsky_parser(src: &str) -> ChumskyParserRes {

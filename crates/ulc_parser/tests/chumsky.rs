@@ -22,7 +22,7 @@ fn global_func() {
                 Function {
                     ident: Spanned::new(9..13, "main".to_owned()),
                     params: Vec::new(),
-                    return_type: ULCType::Unit,
+                    return_type: Spanned::new(16..19, ULCType::Unit),
                     body: vec![
                         Spanned {
                             span: (29..43).into(),
@@ -58,7 +58,7 @@ fn global_func() {
                 .for_each(|e| println!("Lexer error: {}", e));
             parser_errors
                 .into_iter()
-                .for_each(|e| println!("Parser error: {}", e));
+                .for_each(|e| e.display(test, "test.ul"));
             assert!(false)
         }
     }

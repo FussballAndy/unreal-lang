@@ -88,7 +88,7 @@ impl fmt::Display for Function {
             ":params ({}) :body {}",
             self.params
                 .iter()
-                .map(|para| format!("{}: {}", para.0, para.1))
+                .map(|para| format!("{}: {}", para.node.0, para.node.1))
                 .collect::<Vec<_>>()
                 .join(", "),
             join(&self.body)

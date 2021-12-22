@@ -1,5 +1,5 @@
 use chrono::Local;
-use clap::{App, Arg, SubCommand};
+use clap::{App, AppSettings, Arg, SubCommand};
 use log::LevelFilter;
 
 mod cmd;
@@ -28,8 +28,6 @@ fn main() {
 
 fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
     App::new("unreal-lang")
-        .version("0.1")
-        .author("UnrealCode")
         .about("CLI for unreal-lang")
         .subcommand(
             SubCommand::with_name("new")
@@ -72,6 +70,7 @@ fn create_clap_app<'a, 'b>() -> App<'a, 'b> {
         .subcommand(
             SubCommand::with_name("doctor").about("Check if everything is set up correctly!"),
         )
+        .setting(AppSettings::ArgRequiredElseHelp)
 }
 
 fn init_logger() {
