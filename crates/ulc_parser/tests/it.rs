@@ -1,4 +1,4 @@
-use ulc_ast::{BinaryOperation, Expression, Function, Lit, Statement};
+use ulc_ast::{BinaryOperation, Expression, Function, Lit, Statement, TopLevelStatement};
 use ulc_parser::chumsky_parser;
 use ulc_types::{Spanned, ULCType};
 
@@ -15,7 +15,7 @@ fn global_function() {
         Some(stmt) => {
             assert_eq!(
                 stmt[0].node,
-                Function {
+                TopLevelStatement::FunctionDefinition(Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: Spanned::new(25..27, ULCType::Unit),
@@ -36,6 +36,7 @@ fn global_function() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (66..76).into(),
                                 node: Expression::FunctionCall {
+                                    module: None,
                                     function: Spanned::new(66..73, "println".to_owned()),
                                     args: vec![Spanned {
                                         span: (74..75).into(),
@@ -45,7 +46,7 @@ fn global_function() {
                             }))
                         }
                     ]
-                }
+                })
             )
         }
         None => {
@@ -74,7 +75,7 @@ fn if_expr() {
         Some(stmt) => {
             assert_eq!(
                 stmt[0].node,
-                Function {
+                TopLevelStatement::FunctionDefinition(Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: Vec::new(),
                     return_type: Spanned::new(25..27, ULCType::Unit),
@@ -121,7 +122,7 @@ fn if_expr() {
                             })
                         },
                     }]
-                }
+                })
             )
         }
         None => {
@@ -155,7 +156,7 @@ fn bigger_if_expr() {
         Some(stmt) => {
             assert_eq!(
                 stmt[0].node,
-                Function {
+                TopLevelStatement::FunctionDefinition(Function {
                     ident: Spanned::new(18..22, "main".to_owned()),
                     params: vec![
                         Spanned {
@@ -183,6 +184,7 @@ fn bigger_if_expr() {
                                         node: Statement::UnusedExpression(Box::new(Spanned {
                                             span: (89..102).into(),
                                             node: Expression::FunctionCall {
+                                                module: None,
                                                 function: Spanned::new(89..93, "puts".to_owned()),
                                                 args: vec![Spanned {
                                                     span: (94..101).into(),
@@ -198,6 +200,7 @@ fn bigger_if_expr() {
                                         node: Statement::UnusedExpression(Box::new(Spanned {
                                             span: (137..150).into(),
                                             node: Expression::FunctionCall {
+                                                module: None,
                                                 function: Spanned::new(137..141, "puts".to_owned()),
                                                 args: vec![Spanned {
                                                     span: (142..149).into(),
@@ -217,6 +220,7 @@ fn bigger_if_expr() {
                                 expression: Box::new(Spanned {
                                     span: (181..201).into(),
                                     node: Expression::FunctionCall {
+                                        module: None,
                                         function: Spanned::new(181..185, "puts".to_owned()),
                                         args: vec![Spanned {
                                             span: (186..200).into(),
@@ -229,7 +233,7 @@ fn bigger_if_expr() {
                             }
                         }
                     ]
-                }
+                })
             )
         }
         None => {

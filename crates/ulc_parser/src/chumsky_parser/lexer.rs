@@ -37,6 +37,7 @@ pub(super) fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Simple<ch
         "Bool" => Token::Type("Bool"),
         "and" => Token::Operator("and".to_owned()),
         "or" => Token::Operator("or".to_owned()),
+        "import" => Token::Import,
         _ => Token::Ident(ident),
     });
 

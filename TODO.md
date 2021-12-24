@@ -1,4 +1,4 @@
 # List of stuff TODO
-- [ ] Importing other files/modules
+- [x] Importing other files/modules
 - [ ] STD
-- [ ] Move to chumsky as lexer with ariadne
+- [x] Move to chumsky as lexer with ariadne

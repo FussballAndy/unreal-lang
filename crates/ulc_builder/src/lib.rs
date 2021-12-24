@@ -1,6 +1,7 @@
 mod types;
 
 use std::{
+    collections::HashMap,
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -10,12 +11,12 @@ use anyhow::Context;
 pub use types::*;
 
 use ulc_codegen_cranelift::CraneliftCodegonBackend;
-use ulc_middle_ast::MiddleAstRoot;
+use ulc_middle_ast::{FuncData, MiddleAstRoot};
 use ulc_parser::chumsky_parser;
 
-struct BuildData<'input> {
+struct BuildData {
     pub root: PathBuf,
-    pub main_file: &'input str,
+    pub main_file: String,
 }
 
 pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> anyhow::Result<()> {
@@ -29,36 +30,19 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
         .project
         .entry_file
         .clone()
-        .unwrap_or_else(|| "main.ul".to_owned());
-
-    let mut entry_file_path = root_dir.clone();
-    entry_file_path.push("src");
-    entry_file_path.push(&main_file);
-
-    let mut contents = String::new();
-    let mut file = std::fs::File::open(&entry_file_path).context(format!(
-        "The entry file '{}' was not found!",
-        &canonicalize(&entry_file_path)?
-    ))?;
-    file.read_to_string(&mut contents)?;
+        .unwrap_or_else(|| "main".to_owned());
 
     build_input(
         BuildData {
             root: root_dir,
-            main_file: &main_file,
+            main_file,
         },
-        contents,
         config,
         build_config,
     )
 }
 
-fn build_input(
-    data: BuildData,
-    input: String,
-    config: Config,
-    build_config: BuildConfig,
-) -> anyhow::Result<()> {
+fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> anyhow::Result<()> {
     if !data.root.join("target").exists() {
         std::fs::create_dir(data.root.join("target"))?;
         if build_config.verbose {
@@ -72,68 +56,112 @@ fn build_input(
         std::fs::create_dir(data.root.join("target").join("objs"))?;
     }
 
-    let parser = chumsky_parser(&input);
+    let mut finished_files = Vec::new();
+    let mut queued_files = vec![data.main_file.clone()];
 
-    if build_config.verbose {
-        log::info!("Starting parser.");
-    }
+    let mut outlines = HashMap::new();
+    let mut mast_roots = HashMap::new();
 
-    let funcs = match parser.parsed_funcs {
-        Some(funs) => funs,
-        None => {
-            parser
-                .lexer_errors
-                .into_iter()
-                .for_each(|e| println!("{}", e));
-            parser
-                .parser_errors
-                .into_iter()
-                .for_each(|e| e.display(&input, data.main_file));
-            anyhow::bail!("Aborted due to error. Read error report above.")
+    while let Some(fil) = queued_files.pop() {
+        if finished_files.contains(&fil) {
+            continue;
         }
-    };
 
-    if build_config.verbose {
-        log::info!("Finished parser.");
+        let mut cur_file_path = data.root.join("src").join(&fil);
+        cur_file_path.set_extension("ul");
+
+        // If someone likes doing weird stuff with filenames then so be it
+        let fil = cur_file_path
+            .file_stem()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+
+        let input = std::fs::read_to_string(&cur_file_path).context(format!(
+            "The file '{}' was not found!",
+            &canonicalize(&cur_file_path)?
+        ))?;
+
+        let parser = chumsky_parser(&input);
+
+        if build_config.verbose {
+            log::info!("Starting parser.");
+        }
+
+        let top_level_stmts = match parser.parsed_funcs {
+            Some(funs) => funs,
+            None => {
+                parser
+                    .lexer_errors
+                    .into_iter()
+                    .for_each(|e| println!("{}", e));
+                parser
+                    .parser_errors
+                    .into_iter()
+                    .for_each(|e| e.display(&input, &data.main_file));
+                anyhow::bail!("Aborted due to error. Read error report above.")
+            }
+        };
+
+        if build_config.verbose {
+            log::info!("Finished parser.");
+        }
+
+        let mut root = MiddleAstRoot::new();
+
+        let (funcs, imports) = root.append_all_tls(top_level_stmts).map_err(|err| {
+            err.0.display(&input, &data.main_file);
+            anyhow::anyhow!("Aborted due to error. Read error report above.")
+        })?;
+
+        for import in imports {
+            queued_files.push(import);
+        }
+
+        outlines.insert(
+            fil.clone(),
+            funcs
+                .iter()
+                .map(|x| FuncData {
+                    ident: (x.node.ident.node.clone(), None),
+                    param_tys: x.node.params.iter().map(|a| (a.node.1, None)).collect(),
+                    ret_ty: x.node.return_type.node,
+                })
+                .collect::<Vec<_>>(),
+        );
+        mast_roots.insert((fil.clone(), input), (root, funcs));
+
+        finished_files.push(fil);
     }
 
-    let mut root = MiddleAstRoot::new();
+    drop(queued_files);
+    drop(finished_files);
 
-    root.append_all_funcs(funcs).map_err(|err| {
-        err.0.display(&input, data.main_file);
-        anyhow::anyhow!("Aborted due to error. Read error report above.")
-    })?;
+    let mut obj_file_paths = Vec::new();
 
-    if build_config.verbose {
-        log::info!("Checked code! Everythings fine.");
+    for ((cur_ns, input), (mut root, mast_root)) in mast_roots {
+        root.translate(&outlines, mast_root).map_err(|err| {
+            err.0.display(&input, &data.main_file);
+            anyhow::anyhow!("Aborted due to error. Read error report above.")
+        })?;
+
+        if build_config.verbose {
+            log::info!("Checked code! Everythings fine.");
+        }
+
+        let obj_path = native_codegen(&cur_ns, &data.root, root)?;
+
+        let canned_obj_path = canonicalize(obj_path)?;
+
+        obj_file_paths.push(canned_obj_path);
     }
-
-    let mut codegen = CraneliftCodegonBackend::new(data.main_file);
-    log::info!("Starting compilation.");
-    codegen.compile(root)?;
-    log::info!("Done.");
-
-    let main_file = &data.main_file[..(data.main_file.len() - 3)];
-
-    let ir_file = data
-        .root
-        .join("target")
-        .join("clif")
-        .join(format!("{}.clif", main_file));
-
-    let obj_path = data
-        .root
-        .join("target")
-        .join("objs")
-        .join(format!("{}.o", main_file));
-
-    codegen.finish(&ir_file, &obj_path)?;
 
     let binary_name = if let Some(bin) = config.binary {
         bin.file_name
     } else {
-        config.project.name + if cfg!(windows) { ".exe" } else { "" }
-    };
+        config.project.name
+    } + if cfg!(windows) { ".exe" } else { "" };
 
     let output_path = data.root.join("target").join(binary_name);
 
@@ -143,11 +171,11 @@ fn build_input(
         Command::new("clang")
     };
 
-    clang_cmd.args([
-        &canonicalize(&obj_path)?,
-        "-o",
-        output_path.to_str().unwrap(),
-    ]);
+    let mut args = obj_file_paths;
+    args.push("-o".to_owned());
+    args.push(canonicalize(&output_path)?);
+
+    clang_cmd.args(args);
     clang_cmd.stdout(Stdio::null());
     clang_cmd.stderr(Stdio::piped());
     let mut clang_child = clang_cmd.spawn()?;
@@ -168,6 +196,31 @@ fn build_input(
         log::error!("Encountered the following Clang error: \n{}", err);
         Err(anyhow::anyhow!("Read the Clang error above!"))
     }
+}
+
+fn native_codegen(
+    main_file: &str,
+    file_root: &Path,
+    ast_root: MiddleAstRoot,
+) -> anyhow::Result<PathBuf> {
+    let mut codegen = CraneliftCodegonBackend::new(main_file);
+    log::info!("Starting compilation.");
+    codegen.compile(ast_root)?;
+    log::info!("Done.");
+    let main_file = &main_file[..(main_file.len() - 3)];
+
+    let ir_file = file_root
+        .join("target")
+        .join("clif")
+        .join(format!("{}.clif", main_file));
+
+    let obj_path = file_root
+        .join("target")
+        .join("objs")
+        .join(format!("{}.o", main_file));
+
+    codegen.finish(&ir_file, &obj_path)?;
+    Ok(obj_path)
 }
 
 fn canonicalize<P: AsRef<Path>>(path: P) -> anyhow::Result<String> {

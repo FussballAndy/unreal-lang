@@ -17,6 +17,7 @@ pub enum Expression {
     Literal(Lit),
     Ident(String),
     FunctionCall {
+        module: Option<Spanned<String>>,
         function: Spanned<String>,
         args: Expressions,
     },
@@ -65,6 +66,11 @@ pub enum Statement {
     ReturnStatement {
         expression: BoxedExpression,
     },
-    StmtChain(Box<Spanned<Statement>>, Option<Box<Spanned<Statement>>>),
     UnusedExpression(BoxedExpression),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TopLevelStatement {
+    FunctionDefinition(Function),
+    Import(Spanned<String>),
 }

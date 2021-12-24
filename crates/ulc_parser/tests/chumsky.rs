@@ -1,4 +1,4 @@
-use ulc_ast::{Expression, Function, Lit, Statement};
+use ulc_ast::{Expression, Function, Lit, Statement, TopLevelStatement};
 use ulc_parser::{chumsky_parser, ChumskyParserRes};
 use ulc_types::{Spanned, ULCType};
 
@@ -19,7 +19,7 @@ fn global_func() {
         Some(func) => {
             assert_eq!(
                 func[0].node,
-                Function {
+                TopLevelStatement::FunctionDefinition(Function {
                     ident: Spanned::new(9..13, "main".to_owned()),
                     params: Vec::new(),
                     return_type: Spanned::new(16..19, ULCType::Unit),
@@ -40,6 +40,7 @@ fn global_func() {
                             node: Statement::UnusedExpression(Box::new(Spanned {
                                 span: (57..67).into(),
                                 node: Expression::FunctionCall {
+                                    module: None,
                                     function: Spanned::new(57..64, "println".to_owned()),
                                     args: vec![Spanned {
                                         span: (65..66).into(),
@@ -49,7 +50,7 @@ fn global_func() {
                             }))
                         }
                     ]
-                }
+                })
             )
         }
         None => {

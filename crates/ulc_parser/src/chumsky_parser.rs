@@ -1,5 +1,8 @@
 use chumsky::{prelude::*, Error, Stream};
-use ulc_ast::{BinaryOperation, BoxedExpression, Expression, Function, Statement, UnaryOperation};
+use ulc_ast::{
+    BinaryOperation, BoxedExpression, Expression, Function, Statement, TopLevelStatement,
+    UnaryOperation,
+};
 use ulc_types::{errors::SyntaxError, Spanned, Token, ULCType};
 
 mod lexer;
@@ -16,19 +19,38 @@ fn parser_raw_expr(
     recursive(|_| {
         let expr_ident = spanned_ident()
             .then(
-                expr.clone()
-                    .separated_by(just(Token::Ctrl(',')))
-                    .delimited_by(Token::Ctrl('('), Token::Ctrl(')'))
+                just(Token::Ctrl(':'))
+                    .repeated()
+                    .exactly(2)
+                    .ignore_then(spanned_ident())
+                    .or_not()
+                    .then(
+                        expr.clone()
+                            .separated_by(just(Token::Ctrl(',')))
+                            .delimited_by(Token::Ctrl('('), Token::Ctrl(')')),
+                    )
                     .or_not(),
             )
-            .map_with_span(|(idt, exprs), span| {
-                if let Some(args) = exprs {
-                    Spanned {
-                        node: Expression::FunctionCall {
-                            args,
-                            function: idt,
-                        },
-                        span: span.into(),
+            .map_with_span(|(idt, func_call), span| {
+                if let Some((from_mod, args)) = func_call {
+                    if let Some(fn_in_mod) = from_mod {
+                        Spanned {
+                            node: Expression::FunctionCall {
+                                args,
+                                module: Some(idt),
+                                function: fn_in_mod,
+                            },
+                            span: span.into(),
+                        }
+                    } else {
+                        Spanned {
+                            node: Expression::FunctionCall {
+                                args,
+                                module: None,
+                                function: idt,
+                            },
+                            span: span.into(),
+                        }
                     }
                 } else {
                     Spanned {
@@ -226,7 +248,8 @@ fn parser_stmt_list() -> impl Parser<Token, Vec<Spanned<Statement>>, Error = Syn
     })
 }
 
-pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = SyntaxError> {
+pub fn top_level_statement(
+) -> impl Parser<Token, Vec<Spanned<TopLevelStatement>>, Error = SyntaxError> {
     let func = just(Token::Func)
         .ignore_then(spanned_ident())
         .then(
@@ -247,16 +270,24 @@ pub fn parser_func() -> impl Parser<Token, Vec<Spanned<Function>>, Error = Synta
         )
         .then(parser_stmt_list().delimited_by(Token::Do, Token::End))
         .map_with_span(|(((name_idt, params), return_type), stmts), span| Spanned {
-            node: Function {
+            node: TopLevelStatement::FunctionDefinition(Function {
                 ident: name_idt,
                 params,
                 body: stmts,
                 return_type,
-            },
+            }),
             span: span.into(),
         });
 
-    func.repeated().then_ignore(end())
+    let import = just(Token::Import)
+        .ignore_then(spanned_ident())
+        .then_ignore(just(Token::Ctrl(';')))
+        .map_with_span(|file, span| Spanned {
+            node: TopLevelStatement::Import(file),
+            span: span.into(),
+        });
+
+    func.or(import).repeated().then_ignore(end())
 }
 
 #[inline(always)]
@@ -301,7 +332,7 @@ fn parser_ident_and_type() -> impl Parser<Token, Spanned<(String, ULCType)>, Err
 }
 
 pub struct ChumskyParserRes {
-    pub parsed_funcs: Option<Vec<Spanned<Function>>>,
+    pub parsed_funcs: Option<Vec<Spanned<TopLevelStatement>>>,
     pub lexer_errors: Vec<Simple<char>>,
     pub parser_errors: Vec<SyntaxError>,
 }
@@ -311,8 +342,8 @@ pub fn chumsky_parser(src: &str) -> ChumskyParserRes {
     if let Some(tokens) = tokens {
         let len = src.chars().count();
         // Moving parser to seperate thread because of bigger stack size
-        let (res, err) =
-            parser_func().parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
+        let (res, err) = top_level_statement()
+            .parse_recovery(Stream::from_iter(len..len + 1, tokens.into_iter()));
         ChumskyParserRes {
             parsed_funcs: res,
             lexer_errors: Vec::new(),

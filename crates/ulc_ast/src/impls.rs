@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::BlockStatements;
+use crate::{BlockStatements, TopLevelStatement};
 
 use super::{Expression, Function, Lit, Statement};
 
@@ -23,7 +23,20 @@ impl fmt::Display for Expression {
                     None => "".to_owned(),
                 }
             ),
-            Self::FunctionCall { function, args } => write!(f, "({} {})", function, join(args)),
+            Self::FunctionCall {
+                function,
+                args,
+                module,
+            } => write!(
+                f,
+                "({}::{} {})",
+                match module {
+                    Some(moda) => &moda.node,
+                    _ => "",
+                },
+                function,
+                join(args)
+            ),
             Self::BinaryOperation(oper) => write!(f, "({})", oper),
             Self::UnaryOperation(oper) => write!(f, "({})", oper),
         }
@@ -57,15 +70,6 @@ impl fmt::Display for Statement {
             Self::Assignment { name, expr } => write!(f, "({} = {})", name, expr),
             Self::UnusedExpression(e) => e.fmt(f),
             Self::ReturnStatement { expression } => write!(f, "return ({})", expression),
-            Self::StmtChain(le, ri) => write!(
-                f,
-                "{};\n{}",
-                le,
-                match ri {
-                    Some(rig) => format!("{}", rig),
-                    None => format!(""),
-                }
-            ),
         }
     }
 }
@@ -93,6 +97,17 @@ impl fmt::Display for Function {
                 .join(", "),
             join(&self.body)
         )
+    }
+}
+
+impl fmt::Display for TopLevelStatement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TopLevelStatement::FunctionDefinition(func) => {
+                write!(f, "(define {} {})", func.ident, func)
+            }
+            TopLevelStatement::Import(file) => write!(f, "(import {})", file),
+        }
     }
 }
 

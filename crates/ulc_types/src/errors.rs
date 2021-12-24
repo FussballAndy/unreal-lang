@@ -40,10 +40,10 @@ pub enum SyntaxError {
     /// Returned when an ident is already defined
     AlreadyDeclaredIdent {
         ident: String,
-        existing: TokenSpan,
+        existing: Option<TokenSpan>,
         new: TokenSpan,
-        /// True if the idents belong to functions
-        /// False if the idents belong to variables
+        /// - `true` if the idents belong to functions
+        /// - `false` if the idents belong to variables
         is_function: bool,
     },
 
@@ -68,6 +68,21 @@ pub enum SyntaxError {
     NotSupported {
         span: TokenSpan,
         message: &'static str,
+    },
+
+    /// Returned when a module is already imported in a file.
+    AlreadyUsedImport {
+        file: String,
+        existing: TokenSpan,
+        new: TokenSpan,
+    },
+
+    /// Returned when either a namespace was not found
+    /// or something on a namespace was not found.
+    NotFoundNamespace {
+        span: TokenSpan,
+        namespace: String,
+        call: Option<String>,
     },
 }
 
@@ -123,46 +138,47 @@ impl SyntaxError {
             None => "end of file".fg(Color::Fixed(124)).to_string(),
         };
         let report = Report::build(ReportKind::Error, file_id, 0);
-        let report = match self {
-            SyntaxError::UnexpectedInput {
-                span,
-                expected,
-                got,
-            } => report.with_message("Unexpected input.").with_label(
-                Label::new(make_span(span)).with_message(format!(
-                    "Expected any of {} got {}",
-                    expected
-                        .into_iter()
-                        .map(paint_optional_token)
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    paint_optional_token(got)
-                )),
-            ),
-            SyntaxError::IdentNotFound(idt) => report
-                .with_message(format!("Ident {} was not found.", paint(idt.node, 248)))
-                .with_label(Label::new(make_span(idt.span)).with_message("Ident used here!")),
-            SyntaxError::NotMutableVar {
-                used,
-                declared,
-                ident,
-            } => report
-                .with_message("Tried to mutate const variable.")
-                .with_label(Label::new(make_span(declared)).with_message(format!(
-                    "Variable {} declared as const here.",
-                    paint(ident, 248)
-                )))
-                .with_label(
-                    Label::new(make_span(used))
-                        .with_message(format!("Later {} here.", paint("mutated", 207))),
+        let report =
+            match self {
+                SyntaxError::UnexpectedInput {
+                    span,
+                    expected,
+                    got,
+                } => report.with_message("Unexpected input.").with_label(
+                    Label::new(make_span(span)).with_message(format!(
+                        "Expected any of {} got {}",
+                        expected
+                            .into_iter()
+                            .map(paint_optional_token)
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        paint_optional_token(got)
+                    )),
                 ),
-            SyntaxError::InvalidIfExpression { span, sp_msg } => report
-                .with_message(format!("Invalid {} expression.", paint("if", 207)))
-                .with_label(Label::new(make_span(span)))
-                .with_label(Label::new(make_span(sp_msg.span)).with_message(sp_msg.node)),
-            SyntaxError::NotMatchingType { expected, got } => report
-                .with_message(format!("Invalid {}", paint("type", 207)))
-                .with_label(Label::new(make_span(expected.span)).with_message(format!(
+                SyntaxError::IdentNotFound(idt) => report
+                    .with_message(format!("Ident {} was not found.", paint(idt.node, 248)))
+                    .with_label(Label::new(make_span(idt.span)).with_message("Ident used here!")),
+                SyntaxError::NotMutableVar {
+                    used,
+                    declared,
+                    ident,
+                } => report
+                    .with_message("Tried to mutate const variable.")
+                    .with_label(Label::new(make_span(declared)).with_message(format!(
+                        "Variable {} declared as const here.",
+                        paint(ident, 248)
+                    )))
+                    .with_label(
+                        Label::new(make_span(used))
+                            .with_message(format!("Later {} here.", paint("mutated", 207))),
+                    ),
+                SyntaxError::InvalidIfExpression { span, sp_msg } => report
+                    .with_message(format!("Invalid {} expression.", paint("if", 207)))
+                    .with_label(Label::new(make_span(span)))
+                    .with_label(Label::new(make_span(sp_msg.span)).with_message(sp_msg.node)),
+                SyntaxError::NotMatchingType { expected, got } => report
+                    .with_message(format!("Invalid {}", paint("type", 207)))
+                    .with_label(Label::new(make_span(expected.span)).with_message(format!(
                         "This expects {}.",
                         expected
                             .node
@@ -171,47 +187,97 @@ impl SyntaxError {
                             .collect::<Vec<_>>()
                             .join(", ")
                     )))
-                .with_label(
-                    Label::new(make_span(got.span))
-                        .with_message(format!("This has {}", paint(got.node, 226))),
-                ),
-            SyntaxError::FuncCallArgAmount {
-                func_sig,
-                span,
-                m_or_l,
-            } => report
-                .with_message(if m_or_l {
-                    "Too many arguments provided!"
-                } else {
-                    "Too few arguments provided!"
-                })
-                .with_label(Label::new(make_span(span)).with_message(format!(
-                    "This function's signature is {}!",
-                    paint(func_sig, 240)
-                ))),
-            SyntaxError::NotSupported { span, message } => report
-                .with_message("Use of unsupported feature!")
-                .with_label(Label::new(make_span(span)).with_message(message)),
-            SyntaxError::AlreadyDeclaredIdent {
-                ident,
-                existing,
-                new,
-                is_function,
-            } => report
-                .with_message(format!(
-                    "{} {} is already declared!",
-                    paint(if is_function { "Function" } else { "Variable" }, 207),
-                    paint(&ident, 248)
-                ))
-                .with_label(
-                    Label::new(make_span(existing))
-                        .with_message(format!("Ident {} declared here.", paint(ident, 248))),
-                )
-                .with_label(
-                    Label::new(make_span(new))
-                        .with_message(format!("Later again declared {}!", paint("here", 197))),
-                ),
-        };
+                    .with_label(
+                        Label::new(make_span(got.span))
+                            .with_message(format!("This has {}", paint(got.node, 226))),
+                    ),
+                SyntaxError::FuncCallArgAmount {
+                    func_sig,
+                    span,
+                    m_or_l,
+                } => report
+                    .with_message(if m_or_l {
+                        "Too many arguments provided!"
+                    } else {
+                        "Too few arguments provided!"
+                    })
+                    .with_label(Label::new(make_span(span)).with_message(format!(
+                        "This function's signature is {}!",
+                        paint(func_sig, 240)
+                    ))),
+                SyntaxError::NotSupported { span, message } => report
+                    .with_message("Use of unsupported feature!")
+                    .with_label(Label::new(make_span(span)).with_message(message)),
+                SyntaxError::AlreadyDeclaredIdent {
+                    ident,
+                    existing,
+                    new,
+                    is_function,
+                } => {
+                    if let Some(existing) = existing {
+                        report
+                            .with_message(format!(
+                                "{} {} is already declared!",
+                                paint(if is_function { "Function" } else { "Variable" }, 207),
+                                paint(&ident, 248)
+                            ))
+                            .with_label(Label::new(make_span(existing)).with_message(format!(
+                                "Ident {} declared here.",
+                                paint(ident, 248)
+                            )))
+                            .with_label(Label::new(make_span(new)).with_message(format!(
+                                "Later again declared {}!",
+                                paint("here", 197)
+                            )))
+                    } else {
+                        report
+                            .with_message(format!(
+                                "{} {} cannot be declared!",
+                                paint(if is_function { "Function" } else { "Variable" }, 207),
+                                paint(&ident, 248)
+                            ))
+                            .with_label(Label::new(make_span(new)).with_message(format!(
+                                "Tried declare reserved ident {}!",
+                                paint("here", 197)
+                            )))
+                    }
+                }
+                SyntaxError::AlreadyUsedImport {
+                    file,
+                    existing,
+                    new,
+                } => report
+                    .with_message(format!("{} is already imported!", paint(&file, 248)))
+                    .with_label(
+                        Label::new(make_span(existing))
+                            .with_message(format!("{} imported here.", paint(file, 248))),
+                    )
+                    .with_label(
+                        Label::new(make_span(new))
+                            .with_message(format!("Later imported {}!", paint("here", 197))),
+                    ),
+                SyntaxError::NotFoundNamespace {
+                    span,
+                    namespace,
+                    call,
+                } => report
+                    .with_message(if let Some(fn_name) = &call {
+                        format!(
+                            "Function {} was not found on module {}!",
+                            paint(fn_name, 248),
+                            paint(&namespace, 248)
+                        )
+                    } else {
+                        format!("Module {} was not found!", namespace)
+                    })
+                    .with_label(Label::new(make_span(span)).with_message(
+                        if let Some(fn_name) = call {
+                            format!("Tried calling {} here.", paint(fn_name, 248))
+                        } else {
+                            format!("Tried using namespace {} here.", paint(namespace, 248))
+                        },
+                    )),
+            };
         report
             .finish()
             .eprint((file_id, Source::from(input)))

@@ -95,6 +95,7 @@ pub enum Token {
     Then,
     Else,
     End,
+    Import,
 }
 
 impl std::fmt::Display for Token {
@@ -115,6 +116,7 @@ impl std::fmt::Display for Token {
             Token::Then => write!(f, "{}", "then".fg(Color::Fixed(207))),
             Token::Else => write!(f, "{}", "else".fg(Color::Fixed(207))),
             Token::End => write!(f, "{}", "end".fg(Color::Fixed(207))),
+            Token::Import => write!(f, "{}", "import".fg(Color::Fixed(207))),
         }
     }
 }

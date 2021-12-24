@@ -556,6 +556,7 @@ dependencies = [
  "anyhow",
  "log",
  "serde",
+ "ulc_ast",
  "ulc_codegen_cranelift",
  "ulc_middle_ast",
  "ulc_parser",

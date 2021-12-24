@@ -32,6 +32,7 @@ pub struct MiddleAstFunction {
 impl MiddleAstFunction {
     pub(crate) fn new(
         known_funcs: &HashMap<String, FuncData>,
+        outlines: &HashMap<String, Vec<FuncData>>,
         fun: Function,
     ) -> SyntaxResult<Self> {
         let Function {
@@ -65,6 +66,7 @@ impl MiddleAstFunction {
             let mut mat = MiddleAstTranslator {
                 return_type: return_type.clone(),
                 known_funcs,
+                outlines,
                 vars: &mut vars,
                 cur_var: &mut cur_var,
             };
@@ -82,6 +84,7 @@ impl MiddleAstFunction {
 struct MiddleAstTranslator<'a> {
     return_type: Spanned<ULCType>,
     known_funcs: &'a HashMap<String, FuncData>,
+    outlines: &'a HashMap<String, Vec<FuncData>>,
     vars: &'a mut HashMap<String, VarData>,
     cur_var: &'a mut usize,
 }
@@ -131,7 +134,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 if let Some(var_data) = self.vars.get(&name.node) {
                     Err(SyntaxError::AlreadyDeclaredIdent {
                         ident: name.node,
-                        existing: var_data.span,
+                        existing: Some(var_data.span),
                         new: name.span,
                         is_function: false,
                     })
@@ -178,7 +181,7 @@ impl<'a> MiddleAstTranslator<'a> {
                 if let Some(var_data) = self.vars.get(&name.node) {
                     Err(SyntaxError::AlreadyDeclaredIdent {
                         ident: name.node,
-                        existing: var_data.span,
+                        existing: Some(var_data.span),
                         new: name.span,
                         is_function: false,
                     })
@@ -282,70 +285,94 @@ impl<'a> MiddleAstTranslator<'a> {
                     Err(SyntaxError::IdentNotFound(Spanned::new(expr.span, idt)))
                 }
             }
-            Expression::FunctionCall { function, args } => {
-                if let Some(fu) = self.known_funcs.get(&function.node) {
-                    let mut args_b = Vec::new();
-                    let mut par_types_iter = fu.param_tys.iter();
-                    for arg in args {
-                        let ar_span = arg.span;
-                        let (middle_expr, ty) =
-                            self.translate_expr(validate_used_if_expression(arg)?)?;
-                        if let Some(next) = par_types_iter.next() {
-                            if next.node != ty {
-                                return Err(SyntaxError::NotMatchingType {
-                                    expected: Spanned {
-                                        node: vec![next.node],
-                                        span: next.span,
-                                    },
-                                    got: Spanned {
-                                        node: ty,
-                                        span: ar_span,
-                                    },
-                                });
-                            }
+            Expression::FunctionCall {
+                function,
+                args,
+                module,
+            } => {
+                let fu = if let Some(module) = module {
+                    if let Some(mod_fns) = self.outlines.get(&module.node) {
+                        if let Some(fun) = mod_fns.iter().find(|x| x.ident.0 == function.node) {
+                            fun
                         } else {
-                            return Err(SyntaxError::FuncCallArgAmount {
-                                func_sig: format!(
-                                    "{}({})",
-                                    fu.ident.node,
-                                    fu.param_tys
-                                        .iter()
-                                        .map(|s| (&s.node).into())
-                                        .collect::<Vec<&str>>()
-                                        .join(", ")
-                                ),
-                                span: expr.span,
-                                m_or_l: true,
+                            return Err(SyntaxError::NotFoundNamespace {
+                                span: function.span,
+                                call: Some(function.node),
+                                namespace: module.node,
                             });
                         }
-                        args_b.push((middle_expr, ty));
+                    } else {
+                        return Err(SyntaxError::NotFoundNamespace {
+                            span: module.span,
+                            call: None,
+                            namespace: module.node,
+                        });
                     }
-                    if par_types_iter.next() != None {
+                } else if let Some(fd) = self.known_funcs.get(&function.node) {
+                    fd
+                } else {
+                    return Err(SyntaxError::IdentNotFound(function));
+                };
+
+                let mut args_b = Vec::new();
+                let mut par_types_iter = fu.param_tys.iter();
+                for arg in args {
+                    let ar_span = arg.span;
+                    let (middle_expr, ty) =
+                        self.translate_expr(validate_used_if_expression(arg)?)?;
+                    if let Some(next) = par_types_iter.next() {
+                        if next.0 != ty {
+                            return Err(SyntaxError::NotMatchingType {
+                                expected: Spanned {
+                                    node: vec![next.0],
+                                    span: ar_span,
+                                },
+                                got: Spanned {
+                                    node: ty,
+                                    span: ar_span,
+                                },
+                            });
+                        }
+                    } else {
                         return Err(SyntaxError::FuncCallArgAmount {
                             func_sig: format!(
                                 "{}({})",
-                                fu.ident.node,
+                                fu.ident.0,
                                 fu.param_tys
                                     .iter()
-                                    .map(|s| (&s.node).into())
+                                    .map(|s| (&s.0).into())
                                     .collect::<Vec<&str>>()
                                     .join(", ")
                             ),
                             span: expr.span,
-                            m_or_l: false,
+                            m_or_l: true,
                         });
                     }
-                    Ok((
-                        MiddleAstExpression::FunctionCall {
-                            function: function.node,
-                            args: args_b,
-                            ret_ty: fu.ret_ty,
-                        },
-                        fu.ret_ty,
-                    ))
-                } else {
-                    Err(SyntaxError::IdentNotFound(function))
+                    args_b.push((middle_expr, ty));
                 }
+                if par_types_iter.next() != None {
+                    return Err(SyntaxError::FuncCallArgAmount {
+                        func_sig: format!(
+                            "{}({})",
+                            fu.ident.0,
+                            fu.param_tys
+                                .iter()
+                                .map(|s| (&s.0).into())
+                                .collect::<Vec<&str>>()
+                                .join(", ")
+                        ),
+                        span: expr.span,
+                        m_or_l: false,
+                    });
+                }
+                Ok((
+                    MiddleAstExpression::FunctionCall {
+                        function: function.node,
+                        args: args_b,
+                        ret_ty: fu.ret_ty,
+                    },
+                    fu.ret_ty,
+                ))
             }
             Expression::BinaryOperation(oper) => self.translate_binary_operation(oper),
             Expression::UnaryOperation(oper) => self.translate_unary_operation(oper),

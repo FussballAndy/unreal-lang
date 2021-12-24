@@ -54,6 +54,7 @@ fn intern_translate_func(
     for (i, &param) in func.params.iter().enumerate() {
         let val = builder.block_params(entry_block)[i];
         let var = Variable::new(param.0);
+        builder.declare_var(var, convert_type(param.1, module.target_config(), false));
         builder.def_var(var, val);
         const_variables.insert(param.0, var);
     }
@@ -266,7 +267,7 @@ impl<'a> FunctionTranslator<'a> {
 
                 let callee = self
                     .module
-                    .declare_function(&function, Linkage::Export, &sig)?;
+                    .declare_function(&function, Linkage::Import, &sig)?;
                 let local_callee = self.module.declare_func_in_func(callee, self.builder.func);
 
                 let mut arg_values = Vec::new();
