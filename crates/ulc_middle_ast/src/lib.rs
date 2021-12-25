@@ -2,21 +2,28 @@ mod check;
 mod expr;
 mod func;
 mod stmt;
+mod ulc_std;
 
 use std::collections::HashMap;
 
-use convert_case::{Case, Casing};
 use ulc_ast::{Function, TopLevelStatement};
 use ulc_types::{errors::SyntaxError, token::TokenSpan, Spanned, ULCType};
 
 pub use expr::{MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation};
 pub use func::MiddleAstFunction;
 pub use stmt::MiddleAstStatement;
+pub use ulc_std::create_std;
+
+pub type ModuleOutline = HashMap<String, FuncData>;
+pub type ModulesMap = HashMap<String, Vec<FuncData>>;
 
 pub struct MiddleAstRoot {
     pub root_functions: Vec<MiddleAstFunction>,
 
-    function_names: HashMap<String, FuncData>,
+    function_names: ModuleOutline,
+
+    module_name: String,
+    is_main: bool,
 }
 
 pub struct FuncData {
@@ -25,27 +32,13 @@ pub struct FuncData {
     pub param_tys: Vec<(ULCType, Option<TokenSpan>)>,
 }
 
-impl Default for MiddleAstRoot {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MiddleAstRoot {
-    pub fn new() -> Self {
-        let function_names = vec![(
-            "puts".to_owned(),
-            FuncData {
-                ident: ("puts".to_owned(), None),
-                ret_ty: ULCType::Unit,
-                param_tys: vec![(ULCType::String, None)],
-            },
-        )]
-        .into_iter()
-        .collect();
+    pub fn new(module_name: String, is_main: bool) -> Self {
         Self {
             root_functions: Vec::new(),
-            function_names,
+            function_names: HashMap::new(),
+            module_name,
+            is_main,
         }
     }
 
@@ -58,7 +51,7 @@ impl MiddleAstRoot {
         for Spanned { span, node: tls } in stmts {
             match tls {
                 TopLevelStatement::FunctionDefinition(func) => {
-                    let idt = Spanned::new(func.ident.span, func.ident.node.to_case(Case::Camel));
+                    let idt = func.ident.clone();
                     if let Some(func_data) = self.function_names.get(&idt.node) {
                         return Err(MiddleAstFunctionError(SyntaxError::AlreadyDeclaredIdent {
                             existing: func_data.ident.1,
@@ -101,7 +94,7 @@ impl MiddleAstRoot {
 
     pub fn translate(
         &mut self,
-        outlines: &HashMap<String, Vec<FuncData>>,
+        outlines: &ModulesMap,
         funcs: Vec<Spanned<Function>>,
     ) -> Result<(), MiddleAstFunctionError> {
         for func in funcs {
@@ -112,13 +105,20 @@ impl MiddleAstRoot {
 
     fn append_func(
         &mut self,
-        outlines: &HashMap<String, Vec<FuncData>>,
+        outlines: &ModulesMap,
         func: Spanned<Function>,
     ) -> Result<(), MiddleAstFunctionError> {
         let Spanned { node, .. } = func;
         self.root_functions.push(
-            MiddleAstFunction::new(&self.function_names, outlines, node)
-                .map_err(MiddleAstFunctionError)?,
+            MiddleAstFunction::new(
+                &self.module_name,
+                self.is_main,
+                &create_std(),
+                &self.function_names,
+                outlines,
+                node,
+            )
+            .map_err(MiddleAstFunctionError)?,
         );
         Ok(())
     }

@@ -260,23 +260,30 @@ impl SyntaxError {
                     span,
                     namespace,
                     call,
-                } => report
-                    .with_message(if let Some(fn_name) = &call {
-                        format!(
-                            "Function {} was not found on module {}!",
-                            paint(fn_name, 248),
-                            paint(&namespace, 248)
-                        )
-                    } else {
-                        format!("Module {} was not found!", namespace)
-                    })
-                    .with_label(Label::new(make_span(span)).with_message(
-                        if let Some(fn_name) = call {
-                            format!("Tried calling {} here.", paint(fn_name, 248))
+                } => {
+                    let rep = report
+                        .with_message(if let Some(fn_name) = &call {
+                            format!(
+                                "Function {} was not found on module {}!",
+                                paint(fn_name, 248),
+                                paint(&namespace, 248)
+                            )
                         } else {
-                            format!("Tried using namespace {} here.", paint(namespace, 248))
-                        },
-                    )),
+                            format!("Module {} was not found!", namespace)
+                        })
+                        .with_label(Label::new(make_span(span)).with_message(
+                            if let Some(fn_name) = &call {
+                                format!("Tried calling {} here.", paint(fn_name, 248))
+                            } else {
+                                format!("Tried using namespace {} here.", paint(namespace, 248))
+                            },
+                        ));
+                    if Some("main".to_owned()) == call {
+                        rep.with_note("Calling the main function is not allowed!")
+                    } else {
+                        rep
+                    }
+                }
             };
         report
             .finish()

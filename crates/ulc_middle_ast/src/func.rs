@@ -11,7 +11,7 @@ use crate::{
     check::validate_used_if_expression,
     expr::{MiddleAstBinaryOperation, MiddleAstExpression, MiddleAstUnaryOperation},
     stmt::MiddleAstStatement,
-    FuncData,
+    ModuleOutline, ModulesMap,
 };
 
 #[derive(Copy, Clone)]
@@ -31,8 +31,13 @@ pub struct MiddleAstFunction {
 
 impl MiddleAstFunction {
     pub(crate) fn new(
-        known_funcs: &HashMap<String, FuncData>,
-        outlines: &HashMap<String, Vec<FuncData>>,
+        module_name: &str,
+        is_main: bool,
+
+        std_funcs: &ModuleOutline,
+        known_funcs: &ModuleOutline,
+        outlines: &ModulesMap,
+
         fun: Function,
     ) -> SyntaxResult<Self> {
         let Function {
@@ -64,16 +69,25 @@ impl MiddleAstFunction {
         let mut middle_body = Vec::new();
         for stmt in body {
             let mut mat = MiddleAstTranslator {
+                module_name,
                 return_type: return_type.clone(),
+
+                std_funcs,
                 known_funcs,
                 outlines,
+
                 vars: &mut vars,
                 cur_var: &mut cur_var,
             };
             middle_body.push(mat.translate_stmt(stmt)?);
         }
+        let ident = if &ident.node == "main" && is_main {
+            ident.node
+        } else {
+            format!("{}_{}", module_name, ident.node)
+        };
         Ok(Self {
-            ident: ident.node,
+            ident,
             params: a,
             return_type,
             body: middle_body,
@@ -82,9 +96,14 @@ impl MiddleAstFunction {
 }
 
 struct MiddleAstTranslator<'a> {
+    module_name: &'a str,
+
     return_type: Spanned<ULCType>,
-    known_funcs: &'a HashMap<String, FuncData>,
-    outlines: &'a HashMap<String, Vec<FuncData>>,
+
+    std_funcs: &'a ModuleOutline,
+    known_funcs: &'a ModuleOutline,
+    outlines: &'a ModulesMap,
+
     vars: &'a mut HashMap<String, VarData>,
     cur_var: &'a mut usize,
 }
@@ -287,13 +306,13 @@ impl<'a> MiddleAstTranslator<'a> {
             }
             Expression::FunctionCall {
                 function,
-                args,
                 module,
+                args,
             } => {
-                let fu = if let Some(module) = module {
+                let (module, fu) = if let Some(module) = module {
                     if let Some(mod_fns) = self.outlines.get(&module.node) {
                         if let Some(fun) = mod_fns.iter().find(|x| x.ident.0 == function.node) {
-                            fun
+                            (Some(module.node.clone()), fun)
                         } else {
                             return Err(SyntaxError::NotFoundNamespace {
                                 span: function.span,
@@ -309,7 +328,9 @@ impl<'a> MiddleAstTranslator<'a> {
                         });
                     }
                 } else if let Some(fd) = self.known_funcs.get(&function.node) {
-                    fd
+                    (Some(self.module_name.to_owned()), fd)
+                } else if let Some(fd) = self.std_funcs.get(&function.node) {
+                    (None, fd)
                 } else {
                     return Err(SyntaxError::IdentNotFound(function));
                 };
@@ -365,9 +386,15 @@ impl<'a> MiddleAstTranslator<'a> {
                         m_or_l: false,
                     });
                 }
+
+                let function = match module {
+                    Some(modu) => format!("{}_{}", modu, function.node),
+                    None => function.node,
+                };
+
                 Ok((
                     MiddleAstExpression::FunctionCall {
-                        function: function.node,
+                        function,
                         args: args_b,
                         ret_ty: fu.ret_ty,
                     },

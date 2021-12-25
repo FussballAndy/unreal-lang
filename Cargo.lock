@@ -145,12 +145,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -645,7 +639,7 @@ name = "ulc_middle_ast"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "convert_case",
+ "log",
  "ulc_ast",
  "ulc_types",
 ]

@@ -5,6 +5,7 @@ use std::{
     io::Read,
     path::{Path, PathBuf},
     process::{Command, Stdio},
+    time::Instant,
 };
 
 use anyhow::Context;
@@ -20,6 +21,7 @@ struct BuildData {
 }
 
 pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> anyhow::Result<()> {
+    let start = Instant::now();
     log::info!(
         "Building {} @ {}",
         config.project.name,
@@ -32,6 +34,19 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
         .clone()
         .unwrap_or_else(|| "main".to_owned());
 
+    if !root_dir.join("target").exists() {
+        std::fs::create_dir(root_dir.join("target"))?;
+        if build_config.verbose {
+            log::info!("Created target directory.");
+        }
+    }
+    if !root_dir.join("target").join("clif").exists() {
+        std::fs::create_dir(root_dir.join("target").join("clif"))?;
+    }
+    if !root_dir.join("target").join("objs").exists() {
+        std::fs::create_dir(root_dir.join("target").join("objs"))?;
+    }
+
     build_input(
         BuildData {
             root: root_dir,
@@ -39,23 +54,17 @@ pub fn build(root_dir: PathBuf, config: Config, build_config: BuildConfig) -> an
         },
         config,
         build_config,
-    )
+    )?;
+
+    log::info!(
+        "Build finished after {:.2} seconds!",
+        start.elapsed().as_secs_f32()
+    );
+
+    Ok(())
 }
 
 fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> anyhow::Result<()> {
-    if !data.root.join("target").exists() {
-        std::fs::create_dir(data.root.join("target"))?;
-        if build_config.verbose {
-            log::info!("Created target directory.");
-        }
-    }
-    if !data.root.join("target").join("clif").exists() {
-        std::fs::create_dir(data.root.join("target").join("clif"))?;
-    }
-    if !data.root.join("target").join("objs").exists() {
-        std::fs::create_dir(data.root.join("target").join("objs"))?;
-    }
-
     let mut finished_files = Vec::new();
     let mut queued_files = vec![data.main_file.clone()];
 
@@ -78,16 +87,14 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
             .unwrap()
             .to_owned();
 
+        log::info!("Parsing: {}", &fil);
+
         let input = std::fs::read_to_string(&cur_file_path).context(format!(
             "The file '{}' was not found!",
             &canonicalize(&cur_file_path)?
         ))?;
 
         let parser = chumsky_parser(&input);
-
-        if build_config.verbose {
-            log::info!("Starting parser.");
-        }
 
         let top_level_stmts = match parser.parsed_funcs {
             Some(funs) => funs,
@@ -99,19 +106,16 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
                 parser
                     .parser_errors
                     .into_iter()
-                    .for_each(|e| e.display(&input, &data.main_file));
+                    .for_each(|e| e.display(&input, &fil));
                 anyhow::bail!("Aborted due to error. Read error report above.")
             }
         };
 
-        if build_config.verbose {
-            log::info!("Finished parser.");
-        }
-
-        let mut root = MiddleAstRoot::new();
+        let is_main = data.main_file.starts_with(&fil);
+        let mut root = MiddleAstRoot::new(fil.clone(), is_main);
 
         let (funcs, imports) = root.append_all_tls(top_level_stmts).map_err(|err| {
-            err.0.display(&input, &data.main_file);
+            err.0.display(&input, &fil);
             anyhow::anyhow!("Aborted due to error. Read error report above.")
         })?;
 
@@ -123,10 +127,16 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
             fil.clone(),
             funcs
                 .iter()
-                .map(|x| FuncData {
-                    ident: (x.node.ident.node.clone(), None),
-                    param_tys: x.node.params.iter().map(|a| (a.node.1, None)).collect(),
-                    ret_ty: x.node.return_type.node,
+                .filter_map(|x| {
+                    if is_main && &x.node.ident.node == "main" {
+                        None
+                    } else {
+                        Some(FuncData {
+                            ident: (x.node.ident.node.clone(), None),
+                            param_tys: x.node.params.iter().map(|a| (a.node.1, None)).collect(),
+                            ret_ty: x.node.return_type.node,
+                        })
+                    }
                 })
                 .collect::<Vec<_>>(),
         );
@@ -142,13 +152,11 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
 
     for ((cur_ns, input), (mut root, mast_root)) in mast_roots {
         root.translate(&outlines, mast_root).map_err(|err| {
-            err.0.display(&input, &data.main_file);
+            err.0.display(&input, &cur_ns);
             anyhow::anyhow!("Aborted due to error. Read error report above.")
         })?;
 
-        if build_config.verbose {
-            log::info!("Checked code! Everythings fine.");
-        }
+        log::info!("Compiling: {}", cur_ns);
 
         let obj_path = native_codegen(&cur_ns, &data.root, root)?;
 
@@ -173,7 +181,17 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
 
     let mut args = obj_file_paths;
     args.push("-o".to_owned());
-    args.push(canonicalize(&output_path)?);
+
+    let canned_output_path =
+        canonicalize(&output_path).unwrap_or_else(|_| output_path.to_str().unwrap().to_owned());
+
+    args.push(canned_output_path.clone());
+
+    log::info!("Starting linking");
+
+    if build_config.verbose {
+        log::info!("Calling linker with: {}", &args.join(", "));
+    }
 
     clang_cmd.args(args);
     clang_cmd.stdout(Stdio::null());
@@ -183,7 +201,7 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
     if clang_res.success() {
         log::info!(
             "Finished linking! Executable was put in {}!",
-            &canonicalize(output_path)?
+            canned_output_path
         );
         Ok(())
     } else {
@@ -199,25 +217,22 @@ fn build_input(data: BuildData, config: Config, build_config: BuildConfig) -> an
 }
 
 fn native_codegen(
-    main_file: &str,
+    file: &str,
     file_root: &Path,
     ast_root: MiddleAstRoot,
 ) -> anyhow::Result<PathBuf> {
-    let mut codegen = CraneliftCodegonBackend::new(main_file);
-    log::info!("Starting compilation.");
+    let mut codegen = CraneliftCodegonBackend::new(file);
     codegen.compile(ast_root)?;
-    log::info!("Done.");
-    let main_file = &main_file[..(main_file.len() - 3)];
 
     let ir_file = file_root
         .join("target")
         .join("clif")
-        .join(format!("{}.clif", main_file));
+        .join(format!("{}.clif", file));
 
     let obj_path = file_root
         .join("target")
         .join("objs")
-        .join(format!("{}.o", main_file));
+        .join(format!("{}.o", file));
 
     codegen.finish(&ir_file, &obj_path)?;
     Ok(obj_path)
